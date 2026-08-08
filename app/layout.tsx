@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
   openGraph: {
     title: "NOVA | 대학 컨설팅 관리 플랫폼",
-    description: "복잡한 입시 준비를 한 곳에서 선명하게.",
+    description: "NOVA 대학 컨설팅 관리 플랫폼",
     type: "website",
     locale: "ko_KR",
     images: [{ url: "/og.png", width: 1200, height: 630, alt: "NOVA University Consulting" }],
@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "NOVA | 대학 컨설팅 관리 플랫폼",
-    description: "복잡한 입시 준비를 한 곳에서 선명하게.",
+    description: "NOVA 대학 컨설팅 관리 플랫폼",
     images: ["/og.png"],
   },
 };

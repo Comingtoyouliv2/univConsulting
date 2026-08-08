@@ -10,7 +10,6 @@ import {
   Check,
   ChevronDown,
   CircleUserRound,
-  ClipboardList,
   FileText,
   GraduationCap,
   LayoutDashboard,
@@ -23,7 +22,6 @@ import {
   Settings,
   Sparkles,
   Trash2,
-  UserRound,
   UsersRound,
   X,
 } from "lucide-react";
@@ -169,8 +167,6 @@ function formatDate(date: string) {
 }
 
 export function PortalApp() {
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [authRole, setAuthRole] = useState<Role>("student");
   const [session, setSession] = useState<{ role: Role; userId: string; name: string } | null>(null);
   const [authMessage, setAuthMessage] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -230,42 +226,31 @@ export function PortalApp() {
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") ?? "");
     const password = String(data.get("password") ?? "");
-    const fullName = String(data.get("fullName") ?? "");
     setAuthMessage("");
 
     if (!supabase) {
-      setAuthMessage("현재는 체험 모드입니다. 아래 데모 계정으로 바로 둘러보세요.");
+      setAuthMessage("로그인 서버 연결이 필요합니다. 관리자에게 문의해 주세요.");
       return;
     }
 
     setAuthLoading(true);
-    if (authMode === "signup") {
-      const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: fullName } } });
-      setAuthMessage(error ? error.message : "가입 확인 이메일을 보냈습니다. 이메일 인증 후 로그인해 주세요.");
-    } else {
+    try {
       const { data: signIn, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error || !signIn.user) {
-        setAuthMessage(error?.message ?? "로그인 정보를 확인해 주세요.");
+        setAuthMessage("이메일 또는 비밀번호를 확인해 주세요.");
       } else {
         const { data: profile } = await supabase.from("profiles").select("*").eq("id", signIn.user.id).single();
-        if (!profile || profile.role !== authRole) {
+        if (!profile) {
           await supabase.auth.signOut();
-          setAuthMessage("선택한 계정 유형과 등록된 권한이 일치하지 않습니다.");
+          setAuthMessage("등록된 사용자 정보를 찾을 수 없습니다. 관리자에게 문의해 주세요.");
         } else {
           setSession({ role: profile.role, userId: profile.id, name: profile.full_name });
           await loadFromSupabase(profile.role, profile.id);
         }
       }
+    } finally {
+      setAuthLoading(false);
     }
-    setAuthLoading(false);
-  }
-
-  function enterDemo(role: Role) {
-    const student = demoStudents[0];
-    setStudents(demoStudents);
-    setSelectedId(student.profile.id);
-    setSession(role === "admin" ? { role, userId: "admin-demo", name: "최유진" } : { role, userId: student.profile.id, name: student.profile.full_name });
-    setPage("dashboard");
   }
 
   async function logout() {
@@ -318,7 +303,7 @@ export function PortalApp() {
   }
 
   if (!session) {
-    return <AuthScreen mode={authMode} setMode={setAuthMode} role={authRole} setRole={setAuthRole} onSubmit={handleAuth} onDemo={enterDemo} message={authMessage} loading={authLoading} />;
+    return <AuthScreen onSubmit={handleAuth} message={authMessage} loading={authLoading} />;
   }
 
   return (
@@ -381,52 +366,23 @@ export function PortalApp() {
   );
 }
 
-function AuthScreen({ mode, setMode, role, setRole, onSubmit, onDemo, message, loading }: {
-  mode: "login" | "signup"; setMode: (mode: "login" | "signup") => void; role: Role; setRole: (role: Role) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void; onDemo: (role: Role) => void; message: string; loading: boolean;
+function AuthScreen({ onSubmit, message, loading }: {
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void; message: string; loading: boolean;
 }) {
   return (
     <div className="auth-page">
-      <section className="auth-story">
+      <div className="auth-card">
         <div className="auth-brand"><div className="brand-mark">N</div><div><strong>NOVA</strong><span>UNIVERSITY CONSULTING</span></div></div>
-        <div className="story-copy">
-          <span className="eyebrow light"><Sparkles size={15} /> YOUR JOURNEY, ORGANIZED</span>
-          <h1>복잡한 입시 준비를<br /><em>한 곳에서 선명하게.</em></h1>
-          <p>성적, 활동, 미팅 기록부터 지원 전략까지.<br />학생과 컨설턴트가 같은 방향을 바라봅니다.</p>
-          <div className="story-stats">
-            <div><strong>01</strong><span>기록을 모으고</span></div><div><strong>02</strong><span>전략을 세우고</span></div><div><strong>03</strong><span>함께 완성합니다</span></div>
-          </div>
+        <div className="auth-heading">
+          <h1>로그인</h1>
         </div>
-        <p className="auth-quote">“Great applications are built from well-told stories.”</p>
-      </section>
-      <section className="auth-form-side">
-        <div className="auth-card">
-          <div className="auth-heading">
-            <span>{mode === "login" ? "WELCOME BACK" : "GET STARTED"}</span>
-            <h2>{mode === "login" ? "다시 만나 반가워요." : "학생 계정을 만들어요."}</h2>
-            <p>{mode === "login" ? "계정 유형을 선택하고 로그인해 주세요." : "가입 후 이메일 인증을 완료해 주세요."}</p>
-          </div>
-          {mode === "login" && (
-            <div className="role-toggle">
-              <button type="button" className={role === "student" ? "active" : ""} onClick={() => setRole("student")}><UserRound size={17} />학생</button>
-              <button type="button" className={role === "admin" ? "active" : ""} onClick={() => setRole("admin")}><ClipboardList size={17} />관리자</button>
-            </div>
-          )}
-          <form onSubmit={onSubmit} className="auth-form">
-            {mode === "signup" && <label>이름<input name="fullName" required placeholder="홍길동" /></label>}
-            <label>이메일<input name="email" type="email" required placeholder="name@example.com" autoComplete="email" /></label>
-            <label>비밀번호<input name="password" type="password" required minLength={8} placeholder="8자 이상 입력" autoComplete={mode === "login" ? "current-password" : "new-password"} /></label>
-            {message && <p className="auth-message">{message}</p>}
-            <button className="primary-button auth-submit" disabled={loading}>{loading ? "확인 중..." : mode === "login" ? "로그인" : "학생 계정 만들기"}<ArrowRight size={18} /></button>
-          </form>
-          <div className="auth-divider"><span>또는 데모로 둘러보기</span></div>
-          <div className="demo-actions">
-            <button onClick={() => onDemo("student")}>학생 화면 체험</button>
-            <button onClick={() => onDemo("admin")}>관리자 화면 체험</button>
-          </div>
-          <p className="auth-switch">{mode === "login" ? "처음 방문하셨나요?" : "이미 계정이 있나요?"}<button onClick={() => setMode(mode === "login" ? "signup" : "login")}>{mode === "login" ? "학생 가입" : "로그인"}</button></p>
-        </div>
-      </section>
+        <form onSubmit={onSubmit} className="auth-form">
+          <label>이메일<input name="email" type="email" required placeholder="name@example.com" autoComplete="email" /></label>
+          <label>비밀번호<input name="password" type="password" required minLength={8} placeholder="비밀번호를 입력하세요" autoComplete="current-password" /></label>
+          {message && <p className="auth-message">{message}</p>}
+          <button className="primary-button auth-submit" disabled={loading}>{loading ? "확인 중..." : "로그인"}<ArrowRight size={18} /></button>
+        </form>
+      </div>
     </div>
   );
 }
