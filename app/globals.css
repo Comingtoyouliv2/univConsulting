@@ -217,6 +217,9 @@ button, select { cursor: pointer; }
 .auth-submit { width: 100%; margin-top: 5px; min-height: 49px; }
 .auth-submit:disabled { opacity: .6; }
 .auth-message { margin: 0; background: var(--orange-soft); color: #9b492d; padding: 10px 12px; font-size: 10px; line-height: 1.5; }
+.auth-switch { margin: 25px 0 0; text-align: center; color: var(--muted); font-size: 10px; }
+.auth-switch button { border: 0; background: none; color: var(--orange); font-weight: 800; margin-left: 7px; padding: 0; }
+.auth-switch button:hover { text-decoration: underline; }
 
 @media (max-width: 1080px) {
   .app-shell { grid-template-columns: 214px 1fr; }

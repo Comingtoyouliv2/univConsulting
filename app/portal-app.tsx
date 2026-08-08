@@ -167,6 +167,7 @@ function formatDate(date: string) {
 }
 
 export function PortalApp() {
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [session, setSession] = useState<{ role: Role; userId: string; name: string } | null>(null);
   const [authMessage, setAuthMessage] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -226,15 +227,42 @@ export function PortalApp() {
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") ?? "");
     const password = String(data.get("password") ?? "");
+    const passwordConfirm = String(data.get("passwordConfirm") ?? "");
+    const fullName = String(data.get("fullName") ?? "").trim();
     setAuthMessage("");
 
     if (!supabase) {
-      setAuthMessage("로그인 서버 연결이 필요합니다. 관리자에게 문의해 주세요.");
+      setAuthMessage("계정 서버 연결이 필요합니다. 관리자에게 문의해 주세요.");
+      return;
+    }
+
+    if (authMode === "signup" && password !== passwordConfirm) {
+      setAuthMessage("비밀번호가 서로 일치하지 않습니다.");
       return;
     }
 
     setAuthLoading(true);
     try {
+      if (authMode === "signup") {
+        const { data: signUp, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName } },
+        });
+        if (error) {
+          setAuthMessage(error.message.includes("already registered") ? "이미 가입된 이메일입니다." : "회원가입을 완료하지 못했습니다. 입력 내용을 확인해 주세요.");
+        } else if (!signUp.session) {
+          setAuthMessage("가입 확인 이메일을 보냈습니다. 이메일 인증 후 로그인해 주세요.");
+        } else if (signUp.user) {
+          const { data: profile } = await supabase.from("profiles").select("*").eq("id", signUp.user.id).single();
+          if (profile) {
+            setSession({ role: profile.role, userId: profile.id, name: profile.full_name });
+            await loadFromSupabase(profile.role, profile.id);
+          }
+        }
+        return;
+      }
+
       const { data: signIn, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error || !signIn.user) {
         setAuthMessage("이메일 또는 비밀번호를 확인해 주세요.");
@@ -303,7 +331,7 @@ export function PortalApp() {
   }
 
   if (!session) {
-    return <AuthScreen onSubmit={handleAuth} message={authMessage} loading={authLoading} />;
+    return <AuthScreen mode={authMode} onModeChange={(mode) => { setAuthMode(mode); setAuthMessage(""); }} onSubmit={handleAuth} message={authMessage} loading={authLoading} />;
   }
 
   return (
@@ -366,7 +394,8 @@ export function PortalApp() {
   );
 }
 
-function AuthScreen({ onSubmit, message, loading }: {
+function AuthScreen({ mode, onModeChange, onSubmit, message, loading }: {
+  mode: "login" | "signup"; onModeChange: (mode: "login" | "signup") => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void; message: string; loading: boolean;
 }) {
   return (
@@ -374,14 +403,20 @@ function AuthScreen({ onSubmit, message, loading }: {
       <div className="auth-card">
         <div className="auth-brand"><div className="brand-mark">N</div><div><strong>NOVA</strong><span>UNIVERSITY CONSULTING</span></div></div>
         <div className="auth-heading">
-          <h1>로그인</h1>
+          <h1>{mode === "login" ? "로그인" : "회원가입"}</h1>
         </div>
         <form onSubmit={onSubmit} className="auth-form">
+          {mode === "signup" && <label>이름<input name="fullName" required placeholder="이름을 입력하세요" autoComplete="name" /></label>}
           <label>이메일<input name="email" type="email" required placeholder="name@example.com" autoComplete="email" /></label>
-          <label>비밀번호<input name="password" type="password" required minLength={8} placeholder="비밀번호를 입력하세요" autoComplete="current-password" /></label>
+          <label>비밀번호<input name="password" type="password" required minLength={8} placeholder="8자 이상 입력하세요" autoComplete={mode === "login" ? "current-password" : "new-password"} /></label>
+          {mode === "signup" && <label>비밀번호 확인<input name="passwordConfirm" type="password" required minLength={8} placeholder="비밀번호를 다시 입력하세요" autoComplete="new-password" /></label>}
           {message && <p className="auth-message">{message}</p>}
-          <button className="primary-button auth-submit" disabled={loading}>{loading ? "확인 중..." : "로그인"}<ArrowRight size={18} /></button>
+          <button className="primary-button auth-submit" disabled={loading}>{loading ? "확인 중..." : mode === "login" ? "로그인" : "학생 계정 만들기"}<ArrowRight size={18} /></button>
         </form>
+        <p className="auth-switch">
+          {mode === "login" ? "아직 계정이 없으신가요?" : "이미 계정이 있으신가요?"}
+          <button type="button" onClick={() => onModeChange(mode === "login" ? "signup" : "login")}>{mode === "login" ? "회원가입" : "로그인"}</button>
+        </p>
       </div>
     </div>
   );

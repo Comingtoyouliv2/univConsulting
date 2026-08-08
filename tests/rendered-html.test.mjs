@@ -23,6 +23,7 @@ test("server-renders the NOVA product shell", async () => {
   assert.match(html, /NOVA/);
   assert.match(html, /UNIVERSITY CONSULTING/);
   assert.match(html, /로그인/);
+  assert.match(html, /회원가입/);
   assert.doesNotMatch(html, /학생 화면 체험|관리자 화면 체험|YOUR JOURNEY, ORGANIZED|복잡한 입시 준비/);
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton|Your site is taking shape/i);
 });
