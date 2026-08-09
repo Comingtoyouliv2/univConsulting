@@ -50,6 +50,7 @@ create table if not exists public.grades (
   course text not null,
   grade text not null,
   credit_hours numeric(5,2) not null default 1 check (credit_hours >= 0),
+  korean_rank numeric(3,1) check (korean_rank between 1 and 9),
   created_at timestamptz not null default now()
 );
 
