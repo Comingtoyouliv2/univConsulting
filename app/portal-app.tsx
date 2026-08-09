@@ -25,7 +25,7 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 type Role = "student" | "admin";
@@ -131,6 +131,8 @@ export function PortalApp() {
   const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
+  const [studentMenuOpen, setStudentMenuOpen] = useState(false);
+  const studentMenuRef = useRef<HTMLDivElement>(null);
 
   const selected = students.find((student) => student.profile.id === selectedId) ?? students[0];
   const isAdmin = Boolean(session);
@@ -152,6 +154,22 @@ export function PortalApp() {
     const timer = window.setTimeout(() => setToast(""), 2600);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (!studentMenuOpen) return;
+    function closeStudentMenu(event: MouseEvent) {
+      if (!studentMenuRef.current?.contains(event.target as Node)) setStudentMenuOpen(false);
+    }
+    function closeStudentMenuWithKeyboard(event: KeyboardEvent) {
+      if (event.key === "Escape") setStudentMenuOpen(false);
+    }
+    document.addEventListener("mousedown", closeStudentMenu);
+    document.addEventListener("keydown", closeStudentMenuWithKeyboard);
+    return () => {
+      document.removeEventListener("mousedown", closeStudentMenu);
+      document.removeEventListener("keydown", closeStudentMenuWithKeyboard);
+    };
+  }, [studentMenuOpen]);
 
   async function loadFromSupabase(userId: string) {
     if (!supabase) return;
@@ -397,13 +415,24 @@ export function PortalApp() {
       <main className="main-panel">
         <header className="topbar">
           <button className="mobile-menu icon-button" onClick={() => setSidebarOpen(true)} aria-label="메뉴 열기"><Menu size={21} /></button>
-          <div className="student-context">
+          <div className="student-context" ref={studentMenuRef}>
             <span>관리 학생</span>
-            <button onClick={() => setPage("students")}>
+            <button className="student-switcher-trigger" onClick={() => setStudentMenuOpen((open) => !open)} aria-haspopup="menu" aria-expanded={studentMenuOpen}>
               <div className="avatar small">{selected ? selected.profile.full_name.slice(0, 1) : "+"}</div>
               <strong>{selected ? selected.profile.full_name : "학생을 추가해 주세요"}</strong>
-              <ChevronDown size={16} />
+              <ChevronDown className={studentMenuOpen ? "open" : ""} size={16} />
             </button>
+            {studentMenuOpen && <div className="student-switcher-menu" role="menu" aria-label="관리 학생 선택">
+              <div className="student-switcher-head"><div><span>MANAGED STUDENTS</span><strong>관리 학생 선택</strong></div><button onClick={() => { setStudentMenuOpen(false); setPage("students"); }}>전체 관리</button></div>
+              <div className="student-switcher-list">
+                {students.length ? students.map((student) => <button key={student.profile.id} role="menuitemradio" aria-checked={student.profile.id === selectedId} className={student.profile.id === selectedId ? "active" : ""} onClick={() => { setSelectedId(student.profile.id); setStudentMenuOpen(false); if (page === "students") setPage("dashboard"); }}>
+                  <i>{student.profile.full_name.slice(0, 1)}</i>
+                  <span><strong>{student.profile.full_name}</strong><small>{student.profile.school || student.profile.target_major || "학생 정보"}</small></span>
+                  {student.profile.id === selectedId && <Check size={16} />}
+                </button>) : <p>등록된 학생이 없습니다.</p>}
+              </div>
+              <button className="student-switcher-add" onClick={() => { setStudentMenuOpen(false); setPage("students"); }}><Plus size={15} />학생 추가 및 관리</button>
+            </div>}
           </div>
           <div className="top-actions">
             <label className="global-search"><Search size={17} /><input placeholder="학생 또는 기록 검색" aria-label="검색" /></label>

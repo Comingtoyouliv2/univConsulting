@@ -44,10 +44,28 @@ button, select { cursor: pointer; }
 
 .main-panel { grid-column: 2; min-width: 0; }
 .topbar { height: 72px; background: rgba(255,255,255,.94); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 38px; position: sticky; top: 0; z-index: 20; backdrop-filter: blur(12px); }
-.student-context { display: flex; align-items: center; gap: 13px; }
+.student-context { display: flex; align-items: center; gap: 13px; position: relative; }
 .student-context > span { font-size: 10px; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
 .student-context > button { border: 0; background: none; display: flex; align-items: center; gap: 9px; padding: 4px; }
 .student-context strong { font-size: 13px; }
+.student-switcher-trigger svg { transition: transform .2s ease; }
+.student-switcher-trigger svg.open { transform: rotate(180deg); }
+.student-switcher-menu { position: absolute; top: 48px; left: 82px; width: 310px; background: white; border: 1px solid var(--line); box-shadow: 0 18px 45px rgba(24,38,56,.16); z-index: 60; }
+.student-switcher-head { min-height: 67px; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.student-switcher-head span { display: block; color: var(--orange); font-size: 7px; font-weight: 800; letter-spacing: .15em; }
+.student-switcher-head strong { display: block; margin-top: 4px; font: 500 17px Georgia, serif; }
+.student-switcher-head > button { border: 0; background: var(--paper); padding: 7px 9px; color: var(--muted); font-size: 9px; }
+.student-switcher-list { max-height: 300px; overflow-y: auto; padding: 6px; }
+.student-switcher-list > button { width: 100%; min-height: 58px; padding: 9px 10px; border: 0; background: white; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; text-align: left; }
+.student-switcher-list > button:hover, .student-switcher-list > button.active { background: #faf5f1; }
+.student-switcher-list > button > i { width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: white; display: grid; place-items: center; font: normal 13px Georgia, serif; }
+.student-switcher-list > button > span { min-width: 0; }
+.student-switcher-list strong, .student-switcher-list small { display: block; }
+.student-switcher-list strong { font-size: 11px; }
+.student-switcher-list small { margin-top: 3px; color: var(--muted); font-size: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.student-switcher-list svg { color: var(--orange); }
+.student-switcher-list > p { margin: 0; padding: 28px 12px; text-align: center; color: var(--muted); font-size: 10px; }
+.student-switcher-add { width: 100%; min-height: 43px; border: 0; border-top: 1px solid var(--line); background: #f8f7f3; color: var(--orange); display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 10px; font-weight: 700; }
 .top-actions { margin-left: auto; display: flex; align-items: center; gap: 14px; }
 .global-search { width: 230px; display: flex; align-items: center; gap: 8px; background: var(--paper); padding: 8px 11px; color: var(--muted); }
 .global-search input { border: 0; background: none; outline: none; width: 100%; font-size: 11px; }
@@ -271,6 +289,7 @@ button, select { cursor: pointer; }
   .auth-brand { margin-bottom: 34px; }
   .topbar { height: 64px; }
   .student-context > span, .role-pill { display: none; }
+  .student-switcher-menu { left: 0; width: min(310px, calc(100vw - 36px)); }
   .dashboard-hero { grid-template-columns: 1fr; gap: 14px; }
   .hero-avatar { width: 58px; height: 58px; font-size: 23px; }
   .hero-main h1 { font-size: 31px; }
