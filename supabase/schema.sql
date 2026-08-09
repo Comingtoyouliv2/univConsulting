@@ -49,6 +49,7 @@ create table if not exists public.grades (
   term text not null,
   course text not null,
   grade text not null,
+  credit_hours numeric(5,2) not null default 1 check (credit_hours >= 0),
   created_at timestamptz not null default now()
 );
 

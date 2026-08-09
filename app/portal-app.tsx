@@ -51,6 +51,7 @@ type Grade = {
   term: string;
   course: string;
   grade: string;
+  credit_hours: number | string;
 };
 
 type Experience = {
@@ -376,6 +377,7 @@ export function PortalApp() {
       term: record.term,
       course: record.course,
       grade: record.grade,
+      credit_hours: Number(record.credit_hours || 1),
     };
     if (supabase) {
       const { error } = await supabase.from("grades").update(changes).eq("id", gradeId).eq("student_id", selected.profile.id);
@@ -610,23 +612,36 @@ function AcademicPage({ student, onAdd, onUpdate, onDelete }: { student: Student
     if (!editing) return;
     if (await onUpdate(editing.id, Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>)) setEditing(null);
   }
-  return <><PageIntro eyebrow="ACADEMIC RECORD" title="성적표" description="College와 High School 성적을 학기별로 접고 펼쳐 관리하세요." action={<button className="primary-button" onClick={() => { setOpen(!open); setEditing(null); }}><Plus size={17} />성적 추가</button>} />{open && <RecordForm title="새 성적 등록" onClose={() => setOpen(false)} onSubmit={submit}><label>구분<select name="level"><option value="university">College / Dual Enrollment</option><option value="high_school">High School</option></select></label><label>학교명<input name="institution" required placeholder="학교명을 입력하세요" /></label><label>학기<input name="term" required placeholder="예: Fall Semester 2025" /></label><label>과목명<input name="course" required placeholder="예: ECON 2100 · Principles of Macroeconomics" /></label><label>성적<input name="grade" required placeholder="예: A 또는 In Progress" /></label></RecordForm>}{editing && <RecordForm title={`${editing.course} 수정`} onClose={() => setEditing(null)} onSubmit={submitEdit}><label>구분<select name="level" defaultValue={editing.level}><option value="university">College / Dual Enrollment</option><option value="high_school">High School</option></select></label><label>학교명<input name="institution" required defaultValue={editing.institution} /></label><label>학기<input name="term" required defaultValue={editing.term} /></label><label>과목명<input name="course" required defaultValue={editing.course} /></label><label>성적<input name="grade" required defaultValue={editing.grade} /></label></RecordForm>}<section className="panel records-panel"><div className="record-summary"><div><BarChart3 size={22} /><span><strong>{student.grades.length}</strong>개 과목 등록</span></div><p>College {collegeGrades.length} · High School {highSchoolGrades.length}</p></div><GradeGroup label="COLLEGE" title="College Transcript" grades={collegeGrades} emptyLabel="등록된 College 성적이 없습니다." defaultOpen onEdit={(grade) => { setEditing(grade); setOpen(false); }} onDelete={onDelete} /><GradeGroup label="HIGH SCHOOL" title="High School Transcript" grades={highSchoolGrades} emptyLabel="등록된 High School 성적이 없습니다." onEdit={(grade) => { setEditing(grade); setOpen(false); }} onDelete={onDelete} /></section></>;
+  return <><PageIntro eyebrow="ACADEMIC RECORD" title="성적표" description="College와 High School 성적을 학기별로 접고 펼쳐 관리하세요." action={<button className="primary-button" onClick={() => { setOpen(!open); setEditing(null); }}><Plus size={17} />성적 추가</button>} />{open && <RecordForm title="새 성적 등록" onClose={() => setOpen(false)} onSubmit={submit}><label>구분<select name="level"><option value="university">College / Dual Enrollment</option><option value="high_school">High School</option></select></label><label>학교명<input name="institution" required placeholder="학교명을 입력하세요" /></label><label>학기<input name="term" required placeholder="예: Fall Semester 2025" /></label><label>과목명<input name="course" required placeholder="예: ECON 2100 · Principles of Macroeconomics" /></label><label>성적<input name="grade" required placeholder="예: A 또는 In Progress" /></label><label>학점 / Unit<input name="credit_hours" type="number" min="0" step="0.5" required defaultValue="1" /></label></RecordForm>}{editing && <RecordForm title={`${editing.course} 수정`} onClose={() => setEditing(null)} onSubmit={submitEdit}><label>구분<select name="level" defaultValue={editing.level}><option value="university">College / Dual Enrollment</option><option value="high_school">High School</option></select></label><label>학교명<input name="institution" required defaultValue={editing.institution} /></label><label>학기<input name="term" required defaultValue={editing.term} /></label><label>과목명<input name="course" required defaultValue={editing.course} /></label><label>성적<input name="grade" required defaultValue={editing.grade} /></label><label>학점 / Unit<input name="credit_hours" type="number" min="0" step="0.5" required defaultValue={editing.credit_hours ?? 1} /></label></RecordForm>}<section className="panel records-panel"><div className="record-summary"><div><BarChart3 size={22} /><span><strong>{student.grades.length}</strong>개 과목 등록</span></div><p>GPA는 4.0 기준 · P와 수강 중 과목 제외</p></div><GradeGroup label="COLLEGE" title="College Transcript" grades={collegeGrades} emptyLabel="등록된 College 성적이 없습니다." defaultOpen onEdit={(grade) => { setEditing(grade); setOpen(false); }} onDelete={onDelete} /><GradeGroup label="HIGH SCHOOL" title="High School Transcript" grades={highSchoolGrades} emptyLabel="등록된 High School 성적이 없습니다." onEdit={(grade) => { setEditing(grade); setOpen(false); }} onDelete={onDelete} /></section></>;
 }
 
 function termSortValue(term: string) {
   const year = Number(term.match(/20\d{2}/)?.[0] ?? 0);
   const season = /fall/i.test(term) ? 4 : /summer/i.test(term) ? 3 : /spring/i.test(term) ? 2 : /winter/i.test(term) ? 1 : 0;
-  return year * 10 + season;
+  const schoolYear = Number(term.match(/([123])(?:st|nd|rd) Year/i)?.[1] ?? 0);
+  const semester = Number(term.match(/Semester ([12])/i)?.[1] ?? 0);
+  return year ? year * 10 + season : schoolYear * 10 + semester;
+}
+
+function calculateGpa(grades: Grade[]) {
+  const gradePoints: Record<string, number> = { "A+": 4, A: 4, "A-": 3.7, "B+": 3.3, B: 3, "B-": 2.7, "C+": 2.3, C: 2, "C-": 1.7, "D+": 1.3, D: 1, "D-": 0.7, E: 0, F: 0 };
+  return grades.reduce((result, grade) => {
+    const points = gradePoints[grade.grade.trim().toUpperCase()];
+    const credits = Number(grade.credit_hours ?? 1);
+    if (points === undefined || !Number.isFinite(credits) || credits <= 0) return result;
+    return { qualityPoints: result.qualityPoints + points * credits, credits: result.credits + credits };
+  }, { qualityPoints: 0, credits: 0 });
 }
 
 function GradeGroup({ label, title, grades, emptyLabel, defaultOpen, onEdit, onDelete }: { label: string; title: string; grades: Grade[]; emptyLabel: string; defaultOpen?: boolean; onEdit: (grade: Grade) => void; onDelete: (id: string) => void }) {
+  const gpa = calculateGpa(grades);
   const terms = Array.from(grades.reduce((groups, grade) => {
     const group = groups.get(grade.term) ?? [];
     group.push(grade);
     groups.set(grade.term, group);
     return groups;
   }, new Map<string, Grade[]>()).entries()).sort(([termA], [termB]) => termSortValue(termB) - termSortValue(termA));
-  return <details className="grade-group" open={defaultOpen}><summary className="grade-group-head"><div><span>{label}</span><h2>{title}</h2></div><div><em>{grades.length} COURSES</em><ChevronDown size={18} /></div></summary>{grades.length ? <div className="term-groups">{terms.map(([term, termGrades]) => <details className="term-group" key={term}><summary><div><span>TERM</span><strong>{term}</strong></div><div><em>{termGrades.length}과목</em><ChevronDown size={17} /></div></summary><div className="grade-list">{termGrades.map((grade) => <div className="grade-row" key={grade.id}><div className="course-icon"><BookOpen size={19} /></div><div className="course-main"><span>{label}</span><strong>{grade.course}</strong><small>{grade.institution}</small></div><b className={grade.grade === "In Progress" ? "in-progress" : ""}>{grade.grade}</b><span className="grade-row-actions"><button onClick={() => onEdit(grade)} aria-label={`${grade.course} 수정`}><Pencil size={16} /></button><button onClick={() => onDelete(grade.id)} aria-label={`${grade.course} 삭제`}><Trash2 size={17} /></button></span></div>)}</div></details>)}</div> : <EmptyState label={emptyLabel} />}</details>;
+  return <details className="grade-group" open={defaultOpen}><summary className="grade-group-head"><div><span>{label}</span><h2>{title}</h2></div><div><span className="grade-gpa"><small>CURRENT GPA</small><strong>{gpa.credits ? (gpa.qualityPoints / gpa.credits).toFixed(2) : "—"}</strong><small>/ 4.00</small></span><em>{grades.length} COURSES</em><ChevronDown size={18} /></div></summary>{grades.length ? <div className="term-groups">{terms.map(([term, termGrades]) => <details className="term-group" key={term}><summary><div><span>TERM</span><strong>{term}</strong></div><div><em>{termGrades.length}과목</em><ChevronDown size={17} /></div></summary><div className="grade-list">{termGrades.map((grade) => <div className="grade-row" key={grade.id}><div className="course-icon"><BookOpen size={19} /></div><div className="course-main"><span>{label}</span><strong>{grade.course}</strong><small>{grade.institution} · {Number(grade.credit_hours ?? 1)} Units</small></div><b className={grade.grade === "In Progress" ? "in-progress" : ""}>{grade.grade}</b><span className="grade-row-actions"><button onClick={() => onEdit(grade)} aria-label={`${grade.course} 수정`}><Pencil size={16} /></button><button onClick={() => onDelete(grade.id)} aria-label={`${grade.course} 삭제`}><Trash2 size={17} /></button></span></div>)}</div></details>)}</div> : <EmptyState label={emptyLabel} />}</details>;
 }
 
 function ActivitiesPage({ student, onAdd, onDelete }: { student: StudentBundle; onAdd: (record: Record<string, string>) => void; onDelete: (id: string) => void }) {

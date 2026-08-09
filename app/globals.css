@@ -161,6 +161,10 @@ button, select { cursor: pointer; }
 .grade-group-head h2 { margin: 4px 0 0; font: 500 21px Georgia, serif; }
 .grade-group-head > div:last-child { display: flex; align-items: center; gap: 12px; }
 .grade-group-head em { color: var(--muted); font-size: 8px; font-style: normal; letter-spacing: .12em; }
+.grade-gpa { display: grid; grid-template-columns: auto auto; column-gap: 4px; align-items: end; padding-right: 12px; border-right: 1px solid var(--line); }
+.grade-gpa small { color: var(--muted); font-size: 7px; letter-spacing: .1em; }
+.grade-gpa small:first-child { grid-column: 1 / -1; margin-bottom: 1px; }
+.grade-gpa strong { font: 500 22px Georgia, serif; line-height: 1; }
 .grade-group-head svg, .term-group > summary svg { color: var(--muted); transition: transform .2s ease; }
 .grade-group[open] > .grade-group-head svg, .term-group[open] > summary svg { transform: rotate(180deg); }
 .term-groups { padding: 0 18px 18px; }
