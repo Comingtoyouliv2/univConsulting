@@ -17,6 +17,7 @@ import {
   Menu,
   MessageSquareText,
   MoreHorizontal,
+  Pencil,
   Plus,
   Search,
   Sparkles,
@@ -299,6 +300,46 @@ export function PortalApp() {
     setToast(`${saved.full_name} 학생을 추가했습니다.`);
   }
 
+  async function updateStudent(studentId: string, record: Record<string, string>) {
+    const changes = {
+      full_name: record.full_name,
+      email: record.email || "",
+      school: record.school || "",
+      graduation_year: record.graduation_year || "",
+      target_major: record.target_major || "",
+      last_active: new Date().toISOString(),
+    };
+    if (supabase) {
+      const { error } = await supabase.from("students").update(changes).eq("id", studentId);
+      if (error) {
+        setToast("학생 정보를 수정하지 못했습니다.");
+        return;
+      }
+    }
+    setStudents((current) => current.map((student) => student.profile.id === studentId ? {
+      ...student,
+      profile: { ...student.profile, ...changes, last_active: "방금 전" },
+    } : student));
+    setToast(`${changes.full_name} 학생 정보를 수정했습니다.`);
+  }
+
+  async function deleteStudent(studentId: string) {
+    const target = students.find((student) => student.profile.id === studentId);
+    if (!target) return;
+    if (supabase) {
+      const { error } = await supabase.from("students").delete().eq("id", studentId);
+      if (error) {
+        setToast("학생을 삭제하지 못했습니다.");
+        return;
+      }
+    }
+    const remaining = students.filter((student) => student.profile.id !== studentId);
+    setStudents(remaining);
+    if (selectedId === studentId) setSelectedId(remaining[0]?.profile.id ?? "");
+    setPage("students");
+    setToast(`${target.profile.full_name} 학생과 관련 기록을 삭제했습니다.`);
+  }
+
   async function addRecord(table: "grades" | "experiences" | "meeting_notes", record: Record<string, string>) {
     if (!selected) return;
     const localRecord = { ...record, id: uid(table), student_id: selected.profile.id };
@@ -395,7 +436,7 @@ export function PortalApp() {
         </header>
 
         <div className="content-wrap">
-          {page === "students" && <StudentsPage students={students} selectedId={selectedId} search={search} setSearch={setSearch} onAdd={addStudent} onSelect={(id) => { setSelectedId(id); setPage("dashboard"); }} />}
+          {page === "students" && <StudentsPage students={students} selectedId={selectedId} search={search} setSearch={setSearch} onAdd={addStudent} onUpdate={updateStudent} onDelete={deleteStudent} onSelect={(id) => { setSelectedId(id); setPage("dashboard"); }} />}
           {selected ? <>
             {page === "dashboard" && <Dashboard student={selected} isAdmin onNavigate={setPage} />}
             {page === "academic" && <AcademicPage student={selected} onAdd={(record) => addRecord("grades", record)} onDelete={(id) => deleteRecord("grades", id)} />}
@@ -482,14 +523,22 @@ function Metric({ icon: Icon, value, label, note, onClick, tone }: { icon: typeo
   return <button className={`metric-card ${tone}`} onClick={onClick}><div className="metric-icon"><Icon size={22} /></div><div><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span><small>{note}</small></div><ArrowRight className="metric-arrow" size={18} /></button>;
 }
 
-function StudentsPage({ students, selectedId, search, setSearch, onAdd, onSelect }: { students: StudentBundle[]; selectedId: string; search: string; setSearch: (value: string) => void; onAdd: (record: Record<string, string>) => void; onSelect: (id: string) => void }) {
+function StudentsPage({ students, selectedId, search, setSearch, onAdd, onUpdate, onDelete, onSelect }: { students: StudentBundle[]; selectedId: string; search: string; setSearch: (value: string) => void; onAdd: (record: Record<string, string>) => void; onUpdate: (id: string, record: Record<string, string>) => void; onDelete: (id: string) => void; onSelect: (id: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Profile | null>(null);
+  const [deleting, setDeleting] = useState<Profile | null>(null);
   const filtered = students.filter((student) => `${student.profile.full_name} ${student.profile.email} ${student.profile.school}`.toLowerCase().includes(search.toLowerCase()));
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onAdd(Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>);
     event.currentTarget.reset();
     setOpen(false);
+  }
+  function submitEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editing) return;
+    onUpdate(editing.id, Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>);
+    setEditing(null);
   }
   return <>
     <PageIntro eyebrow="STUDENT DIRECTORY" title="학생 관리" description="학생을 개별 등록하고 성적, 활동, 미팅 기록을 한 곳에서 관리하세요." action={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} />학생 추가</button>} />
@@ -500,9 +549,17 @@ function StudentsPage({ students, selectedId, search, setSearch, onAdd, onSelect
       <label>졸업 예정 연도<input name="graduation_year" placeholder="예: 2027" /></label>
       <label>희망 전공<input name="target_major" placeholder="예: Computer Science" /></label>
     </RecordForm>}
+    {editing && <RecordForm title={`${editing.full_name} 학생 정보 수정`} onClose={() => setEditing(null)} onSubmit={submitEdit} wide>
+      <label>학생 이름<input name="full_name" required defaultValue={editing.full_name} placeholder="학생 이름" /></label>
+      <label>연락 이메일<input name="email" type="email" defaultValue={editing.email} placeholder="student@example.com" /></label>
+      <label>재학 학교<input name="school" defaultValue={editing.school} placeholder="학교명" /></label>
+      <label>졸업 예정 연도<input name="graduation_year" defaultValue={editing.graduation_year} placeholder="예: 2027" /></label>
+      <label>희망 전공<input name="target_major" defaultValue={editing.target_major} placeholder="예: Computer Science" /></label>
+    </RecordForm>}
+    {deleting && <section className="panel delete-confirm"><div><span>DELETE STUDENT</span><h3>{deleting.full_name} 학생을 삭제할까요?</h3><p>성적, 활동, 미팅, 추가 정보도 함께 삭제되며 되돌릴 수 없습니다.</p></div><div><button onClick={() => setDeleting(null)}>취소</button><button className="danger-button" onClick={() => { onDelete(deleting.id); setDeleting(null); }}><Trash2 size={16} />학생 삭제</button></div></section>}
     <section className="panel student-directory">
       <div className="directory-toolbar"><label><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름, 이메일, 학교로 검색" /></label><span>전체 {students.length}명</span></div>
-      {students.length ? <div className="student-table"><div className="student-row table-head"><span>학생</span><span>목표 전공</span><span>졸업 연도</span><span>진행률</span><span>최근 활동</span><span /></div>{filtered.map((student) => <button className={`student-row ${student.profile.id === selectedId ? "selected" : ""}`} key={student.profile.id} onClick={() => onSelect(student.profile.id)}><span className="student-cell"><i>{student.profile.full_name.slice(0, 1)}</i><span><strong>{student.profile.full_name}</strong><small>{student.profile.email || student.profile.school || "연락처 미등록"}</small></span></span><span>{student.profile.target_major || "미정"}</span><span>{student.profile.graduation_year || "미정"}</span><span className="row-progress"><i><b style={{ width: `${student.profile.progress}%` }} /></i>{student.profile.progress}%</span><span>{student.profile.last_active}</span><span><ArrowRight size={17} /></span></button>)}</div> : <div className="student-empty"><UsersRound size={34} /><h3>등록된 학생이 없습니다.</h3><p>첫 학생을 추가하면 개인별 컨설팅 기록을 시작할 수 있습니다.</p><button className="primary-button" onClick={() => setOpen(true)}><Plus size={17} />첫 학생 추가</button></div>}
+      {students.length ? <div className="student-table"><div className="student-row table-head"><span>학생</span><span>목표 전공</span><span>졸업 연도</span><span>진행률</span><span>최근 활동</span><span>관리</span></div>{filtered.map((student) => <div className={`student-row ${student.profile.id === selectedId ? "selected" : ""}`} key={student.profile.id}><button className="student-cell student-open" onClick={() => onSelect(student.profile.id)}><i>{student.profile.full_name.slice(0, 1)}</i><span><strong>{student.profile.full_name}</strong><small>{student.profile.email || student.profile.school || "연락처 미등록"}</small></span></button><span>{student.profile.target_major || "미정"}</span><span>{student.profile.graduation_year || "미정"}</span><span className="row-progress"><i><b style={{ width: `${student.profile.progress}%` }} /></i>{student.profile.progress}%</span><span>{student.profile.last_active}</span><span className="student-actions"><button onClick={() => onSelect(student.profile.id)} aria-label={`${student.profile.full_name} 기록 열기`}><ArrowRight size={16} /></button><button onClick={() => { setEditing(student.profile); setDeleting(null); setOpen(false); }} aria-label={`${student.profile.full_name} 수정`}><Pencil size={15} /></button><button className="delete" onClick={() => { setDeleting(student.profile); setEditing(null); setOpen(false); }} aria-label={`${student.profile.full_name} 삭제`}><Trash2 size={15} /></button></span></div>)}</div> : <div className="student-empty"><UsersRound size={34} /><h3>등록된 학생이 없습니다.</h3><p>첫 학생을 추가하면 개인별 컨설팅 기록을 시작할 수 있습니다.</p><button className="primary-button" onClick={() => setOpen(true)}><Plus size={17} />첫 학생 추가</button></div>}
     </section>
   </>;
 }

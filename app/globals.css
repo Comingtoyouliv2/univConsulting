@@ -188,10 +188,11 @@ button, select { cursor: pointer; }
 .directory-toolbar label { width: 300px; display: flex; align-items: center; gap: 8px; background: #f5f4f0; padding: 9px 11px; color: var(--muted); }
 .directory-toolbar input { border: 0; background: none; outline: none; width: 100%; font-size: 10px; }
 .directory-toolbar > span { font-size: 10px; color: var(--muted); }
-.student-row { display: grid; grid-template-columns: 1.5fr 1fr .55fr .8fr .65fr 30px; gap: 16px; align-items: center; width: 100%; border: 0; border-bottom: 1px solid #eceae5; background: white; padding: 15px 22px; text-align: left; font-size: 10px; }
+.student-row { display: grid; grid-template-columns: 1.5fr 1fr .55fr .8fr .65fr 104px; gap: 16px; align-items: center; width: 100%; border: 0; border-bottom: 1px solid #eceae5; background: white; padding: 15px 22px; text-align: left; font-size: 10px; }
 .student-row:not(.table-head):hover, .student-row.selected { background: #faf5f1; }
 .student-row.table-head { color: var(--muted); font-size: 8px; letter-spacing: .08em; padding-top: 11px; padding-bottom: 11px; }
 .student-cell { display: flex; align-items: center; gap: 10px; }
+.student-open { border: 0; background: none; padding: 0; text-align: left; min-width: 0; }
 .student-cell > i { width: 35px; height: 35px; border-radius: 50%; background: var(--ink); color: white; display: grid; place-items: center; font: 13px Georgia, serif; }
 .student-cell strong, .student-cell small { display: block; }
 .student-cell strong { font-size: 11px; }
@@ -199,6 +200,18 @@ button, select { cursor: pointer; }
 .row-progress { display: flex; align-items: center; gap: 7px; }
 .row-progress > i { width: 50px; height: 4px; background: #dddcd6; }
 .row-progress b { display: block; height: 100%; background: var(--orange); }
+.student-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.student-actions button { width: 30px; height: 30px; border: 1px solid #deddd7; background: white; display: grid; place-items: center; color: var(--ink); }
+.student-actions button:hover { border-color: var(--ink); }
+.student-actions button.delete { color: #b54835; }
+.student-actions button.delete:hover { border-color: #b54835; background: #fff4f1; }
+.delete-confirm { margin-bottom: 18px; padding: 22px 25px; display: flex; justify-content: space-between; align-items: center; gap: 24px; border-left: 4px solid #b54835; }
+.delete-confirm span { color: #b54835; font-size: 8px; letter-spacing: .18em; font-weight: 800; }
+.delete-confirm h3 { font: 500 20px Georgia, serif; margin: 5px 0; }
+.delete-confirm p { color: var(--muted); font-size: 9px; margin: 0; }
+.delete-confirm > div:last-child { display: flex; gap: 9px; flex-shrink: 0; }
+.delete-confirm button { min-height: 39px; padding: 0 14px; border: 1px solid var(--line); background: white; font-size: 10px; }
+.delete-confirm .danger-button { border: 0; background: #b54835; color: white; display: flex; align-items: center; gap: 7px; font-weight: 700; }
 .student-empty, .no-student-state { display: grid; place-items: center; align-content: center; text-align: center; color: var(--muted); }
 .student-empty { min-height: 320px; padding: 40px 20px; }
 .no-student-state { min-height: 430px; padding: 60px 24px; }
@@ -231,7 +244,7 @@ button, select { cursor: pointer; }
   .dashboard-hero { grid-template-columns: auto 1fr; }
   .progress-block { grid-column: 1 / -1; border-left: 0; padding: 0; max-width: 470px; }
   .metric-grid { grid-template-columns: repeat(2, 1fr); }
-  .student-row { grid-template-columns: 1.4fr .9fr .6fr .8fr 25px; }
+  .student-row { grid-template-columns: 1.4fr .9fr .6fr .8fr 104px; }
   .student-row > span:nth-child(5) { display: none; }
   .record-form { grid-template-columns: repeat(2, 1fr); }
   .record-form-actions { grid-column: 1 / -1; }
@@ -271,7 +284,8 @@ button, select { cursor: pointer; }
   .form-actions span { max-width: 180px; }
   .additional-form { padding: 2px 19px 0; }
   .student-table { overflow-x: auto; }
-  .student-row { min-width: 710px; }
+  .student-row { min-width: 800px; }
+  .delete-confirm { align-items: flex-start; flex-direction: column; }
   .directory-toolbar label { width: 220px; }
   .timeline-item { grid-template-columns: 35px 1fr; }
   .timeline-rail i { width: 27px; height: 27px; }
