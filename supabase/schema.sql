@@ -101,6 +101,20 @@ as $$
   );
 $$;
 
+create or replace function public.delete_managed_student(target_student_id uuid)
+returns boolean
+language plpgsql security definer set search_path = public
+as $$
+begin
+  delete from public.students
+  where id = target_student_id and owner_id = auth.uid();
+  return found;
+end;
+$$;
+
+revoke all on function public.delete_managed_student(uuid) from public;
+grant execute on function public.delete_managed_student(uuid) to authenticated;
+
 alter table public.profiles enable row level security;
 alter table public.students enable row level security;
 alter table public.grades enable row level security;
@@ -134,5 +148,6 @@ create policy "meetings_delete_owned" on public.meeting_notes for delete using (
 create policy "additional_select_owned" on public.additional_info for select using (public.owns_student(student_id));
 create policy "additional_insert_owned" on public.additional_info for insert with check (public.owns_student(student_id));
 create policy "additional_update_owned" on public.additional_info for update using (public.owns_student(student_id)) with check (public.owns_student(student_id));
+create policy "additional_delete_owned" on public.additional_info for delete using (public.owns_student(student_id));
 
 analyze;

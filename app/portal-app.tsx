@@ -100,51 +100,6 @@ const emptyAdditional: AdditionalInfo = {
   notes: "",
 };
 
-const demoStudents: StudentBundle[] = [
-  {
-    profile: {
-      id: "student-1",
-      full_name: "김민준",
-      email: "minjun.kim@example.com",
-      role: "student",
-      school: "Seoul Foreign School",
-      graduation_year: "2027",
-      target_major: "Computer Science",
-      progress: 72,
-      last_active: "오늘",
-    },
-    grades: [
-      { id: "g1", student_id: "student-1", level: "high_school", institution: "Seoul Foreign School", term: "G11 · Semester 2", course: "AP Calculus BC", grade: "A" },
-      { id: "g2", student_id: "student-1", level: "high_school", institution: "Seoul Foreign School", term: "G11 · Semester 2", course: "AP Computer Science A", grade: "A+" },
-      { id: "g3", student_id: "student-1", level: "high_school", institution: "Seoul Foreign School", term: "G11 · Semester 1", course: "English Literature", grade: "A-" },
-    ],
-    experiences: [
-      { id: "e1", student_id: "student-1", category: "Leadership", title: "Coding for All", organization: "교내 봉사 동아리", role: "Founder & President", period: "2025.03 — 현재", description: "지역 중학생을 위한 주말 코딩 수업을 기획하고 18명의 멘토를 운영합니다." },
-      { id: "e2", student_id: "student-1", category: "Research", title: "AI Accessibility Research", organization: "Yonsei University Lab", role: "Student Researcher", period: "2025.06 — 2025.12", description: "시각장애인을 위한 이미지 설명 모델의 정확도 분석을 보조했습니다." },
-    ],
-    meetings: [
-      { id: "m1", student_id: "student-1", meeting_date: "2026-08-05", consultant: "최유진 컨설턴트", format: "Zoom", summary: "Early Decision 대학 후보와 전공 적합성을 검토했습니다. 프로젝트 임팩트를 수치화해 활동 설명에 반영하기로 했습니다.", next_steps: "대학 5곳 커리큘럼 조사 · 활동 리스트 1차 수정" },
-      { id: "m2", student_id: "student-1", meeting_date: "2026-07-22", consultant: "최유진 컨설턴트", format: "대면", summary: "Common App 에세이의 핵심 소재를 브레인스토밍하고 개인 성장 스토리를 선정했습니다.", next_steps: "에세이 아웃라인 작성 · 추천서 요청 대상 확정" },
-    ],
-    additional: {
-      target_countries: "미국, 캐나다",
-      target_major: "Computer Science / Human-Computer Interaction",
-      application_round: "Early Decision · Regular Decision",
-      budget: "연간 USD 70,000 이내",
-      test_scores: "SAT 1510 · TOEFL 112 · AP 5과목",
-      notes: "도시형 캠퍼스를 선호하며, 학부 연구와 창업 지원이 강한 학교를 우선 검토. 재정보조 신청 예정.",
-    },
-  },
-  {
-    profile: { id: "student-2", full_name: "이서연", email: "seoyeon.lee@example.com", role: "student", school: "Korea International School", graduation_year: "2027", target_major: "Economics", progress: 58, last_active: "어제" },
-    grades: [], experiences: [], meetings: [], additional: { ...emptyAdditional, target_major: "Economics", target_countries: "미국, 영국" },
-  },
-  {
-    profile: { id: "student-3", full_name: "박지호", email: "jiho.park@example.com", role: "student", school: "Branksome Hall Asia", graduation_year: "2028", target_major: "Biology", progress: 41, last_active: "3일 전" },
-    grades: [], experiences: [], meetings: [], additional: { ...emptyAdditional, target_major: "Biology / Pre-med", target_countries: "미국" },
-  },
-];
-
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const supabase: SupabaseClient | null = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
@@ -172,8 +127,8 @@ export function PortalApp() {
   const [authLoading, setAuthLoading] = useState(false);
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [students, setStudents] = useState<StudentBundle[]>(demoStudents);
-  const [selectedId, setSelectedId] = useState("student-1");
+  const [students, setStudents] = useState<StudentBundle[]>([]);
+  const [selectedId, setSelectedId] = useState("");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
 
@@ -202,7 +157,11 @@ export function PortalApp() {
     if (!supabase) return;
     const { data: studentRows, error: studentError } = await supabase.from("students").select("*").eq("owner_id", userId).order("created_at", { ascending: true });
     if (studentError) {
-      setToast("학생 데이터 구조를 확인해 주세요.");
+      console.error("Failed to load students", studentError);
+      setStudents([]);
+      setSelectedId("");
+      setPage("students");
+      setToast("학생 DB 연결을 확인해 주세요. 샘플 데이터는 표시하지 않습니다.");
       return;
     }
     if (!studentRows?.length) {
@@ -323,14 +282,31 @@ export function PortalApp() {
     setToast(`${changes.full_name} 학생 정보를 수정했습니다.`);
   }
 
-  async function deleteStudent(studentId: string) {
+  async function deleteStudent(studentId: string): Promise<boolean> {
     const target = students.find((student) => student.profile.id === studentId);
-    if (!target) return;
+    if (!target) return false;
     if (supabase) {
-      const { error } = await supabase.from("students").delete().eq("id", studentId);
-      if (error) {
-        setToast("학생을 삭제하지 못했습니다.");
-        return;
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(studentId)) {
+        if (session) await loadFromSupabase(session.userId);
+        setToast("샘플 학생을 제거하고 실제 DB 목록을 불러왔습니다.");
+        return true;
+      }
+
+      const rpcResult = await supabase.rpc("delete_managed_student", { target_student_id: studentId });
+      if (rpcResult.error?.code === "PGRST202") {
+        const fallback = await supabase.from("students").delete().eq("id", studentId).eq("owner_id", session?.userId ?? "");
+        if (fallback.error) {
+          console.error("Failed to delete student", fallback.error);
+          setToast(fallback.error.code === "23503" ? "관련 기록의 삭제 설정을 먼저 업데이트해 주세요." : "학생 삭제 권한을 확인해 주세요.");
+          return false;
+        }
+      } else if (rpcResult.error) {
+        console.error("Failed to delete student", rpcResult.error);
+        setToast("학생 삭제 권한을 확인해 주세요.");
+        return false;
+      } else if (rpcResult.data !== true) {
+        setToast("삭제할 학생을 찾지 못했거나 권한이 없습니다.");
+        return false;
       }
     }
     const remaining = students.filter((student) => student.profile.id !== studentId);
@@ -338,6 +314,7 @@ export function PortalApp() {
     if (selectedId === studentId) setSelectedId(remaining[0]?.profile.id ?? "");
     setPage("students");
     setToast(`${target.profile.full_name} 학생과 관련 기록을 삭제했습니다.`);
+    return true;
   }
 
   async function addRecord(table: "grades" | "experiences" | "meeting_notes", record: Record<string, string>) {
@@ -523,7 +500,7 @@ function Metric({ icon: Icon, value, label, note, onClick, tone }: { icon: typeo
   return <button className={`metric-card ${tone}`} onClick={onClick}><div className="metric-icon"><Icon size={22} /></div><div><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span><small>{note}</small></div><ArrowRight className="metric-arrow" size={18} /></button>;
 }
 
-function StudentsPage({ students, selectedId, search, setSearch, onAdd, onUpdate, onDelete, onSelect }: { students: StudentBundle[]; selectedId: string; search: string; setSearch: (value: string) => void; onAdd: (record: Record<string, string>) => void; onUpdate: (id: string, record: Record<string, string>) => void; onDelete: (id: string) => void; onSelect: (id: string) => void }) {
+function StudentsPage({ students, selectedId, search, setSearch, onAdd, onUpdate, onDelete, onSelect }: { students: StudentBundle[]; selectedId: string; search: string; setSearch: (value: string) => void; onAdd: (record: Record<string, string>) => void; onUpdate: (id: string, record: Record<string, string>) => void; onDelete: (id: string) => Promise<boolean>; onSelect: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState<Profile | null>(null);
@@ -556,7 +533,7 @@ function StudentsPage({ students, selectedId, search, setSearch, onAdd, onUpdate
       <label>졸업 예정 연도<input name="graduation_year" defaultValue={editing.graduation_year} placeholder="예: 2027" /></label>
       <label>희망 전공<input name="target_major" defaultValue={editing.target_major} placeholder="예: Computer Science" /></label>
     </RecordForm>}
-    {deleting && <section className="panel delete-confirm"><div><span>DELETE STUDENT</span><h3>{deleting.full_name} 학생을 삭제할까요?</h3><p>성적, 활동, 미팅, 추가 정보도 함께 삭제되며 되돌릴 수 없습니다.</p></div><div><button onClick={() => setDeleting(null)}>취소</button><button className="danger-button" onClick={() => { onDelete(deleting.id); setDeleting(null); }}><Trash2 size={16} />학생 삭제</button></div></section>}
+    {deleting && <section className="panel delete-confirm"><div><span>DELETE STUDENT</span><h3>{deleting.full_name} 학생을 삭제할까요?</h3><p>성적, 활동, 미팅, 추가 정보도 함께 삭제되며 되돌릴 수 없습니다.</p></div><div><button onClick={() => setDeleting(null)}>취소</button><button className="danger-button" onClick={async () => { if (await onDelete(deleting.id)) setDeleting(null); }}><Trash2 size={16} />학생 삭제</button></div></section>}
     <section className="panel student-directory">
       <div className="directory-toolbar"><label><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름, 이메일, 학교로 검색" /></label><span>전체 {students.length}명</span></div>
       {students.length ? <div className="student-table"><div className="student-row table-head"><span>학생</span><span>목표 전공</span><span>졸업 연도</span><span>진행률</span><span>최근 활동</span><span>관리</span></div>{filtered.map((student) => <div className={`student-row ${student.profile.id === selectedId ? "selected" : ""}`} key={student.profile.id}><button className="student-cell student-open" onClick={() => onSelect(student.profile.id)}><i>{student.profile.full_name.slice(0, 1)}</i><span><strong>{student.profile.full_name}</strong><small>{student.profile.email || student.profile.school || "연락처 미등록"}</small></span></button><span>{student.profile.target_major || "미정"}</span><span>{student.profile.graduation_year || "미정"}</span><span className="row-progress"><i><b style={{ width: `${student.profile.progress}%` }} /></i>{student.profile.progress}%</span><span>{student.profile.last_active}</span><span className="student-actions"><button onClick={() => onSelect(student.profile.id)} aria-label={`${student.profile.full_name} 기록 열기`}><ArrowRight size={16} /></button><button onClick={() => { setEditing(student.profile); setDeleting(null); setOpen(false); }} aria-label={`${student.profile.full_name} 수정`}><Pencil size={15} /></button><button className="delete" onClick={() => { setDeleting(student.profile); setEditing(null); setOpen(false); }} aria-label={`${student.profile.full_name} 삭제`}><Trash2 size={15} /></button></span></div>)}</div> : <div className="student-empty"><UsersRound size={34} /><h3>등록된 학생이 없습니다.</h3><p>첫 학생을 추가하면 개인별 컨설팅 기록을 시작할 수 있습니다.</p><button className="primary-button" onClick={() => setOpen(true)}><Plus size={17} />첫 학생 추가</button></div>}
