@@ -414,6 +414,31 @@ export function PortalApp() {
     }));
   }
 
+  async function updateMeeting(meetingId: string, record: Record<string, string>): Promise<boolean> {
+    if (!selected) return false;
+    const changes = {
+      meeting_date: record.meeting_date,
+      consultant: record.consultant,
+      format: record.format,
+      summary: record.summary,
+      next_steps: record.next_steps,
+      font_size: Math.min(22, Math.max(12, Number(record.font_size || 15))),
+    };
+    if (supabase) {
+      const { error } = await supabase.from("meeting_notes").update(changes).eq("id", meetingId).eq("student_id", selected.profile.id);
+      if (error) {
+        setToast("미팅 기록을 수정하지 못했습니다.");
+        return false;
+      }
+    }
+    setStudents((current) => current.map((student) => student.profile.id !== selected.profile.id ? student : {
+      ...student,
+      meetings: student.meetings.map((meeting) => meeting.id === meetingId ? { ...meeting, ...changes } : meeting),
+    }));
+    setToast("미팅 기록을 수정했습니다.");
+    return true;
+  }
+
   async function saveAdditional(info: AdditionalInfo) {
     if (!selected) return;
     if (supabase) {
@@ -493,7 +518,7 @@ export function PortalApp() {
             {page === "dashboard" && <Dashboard student={selected} isAdmin onNavigate={setPage} />}
             {page === "academic" && <AcademicPage student={selected} onAdd={(record) => addRecord("grades", record)} onUpdate={updateGrade} onDelete={(id) => deleteRecord("grades", id)} />}
             {page === "activities" && <ActivitiesPage student={selected} onAdd={(record) => addRecord("experiences", record)} onDelete={(id) => deleteRecord("experiences", id)} />}
-            {page === "meetings" && <MeetingsPage student={selected} onAdd={(record) => addRecord("meeting_notes", record)} onFontSizeChange={updateMeetingFont} onDelete={(id) => deleteRecord("meeting_notes", id)} />}
+            {page === "meetings" && <MeetingsPage student={selected} onAdd={(record) => addRecord("meeting_notes", record)} onUpdate={updateMeeting} onFontSizeChange={updateMeetingFont} onDelete={(id) => deleteRecord("meeting_notes", id)} />}
             {page === "additional" && <AdditionalPage student={selected} onSave={saveAdditional} />}
           </> : page !== "students" && <NoStudentState onAdd={() => setPage("students")} />}
         </div>
@@ -680,10 +705,16 @@ function ActivitiesPage({ student, onAdd, onDelete }: { student: StudentBundle; 
   return <><PageIntro eyebrow="EXPERIENCE & EXTRACURRICULAR" title="경력 · 활동" description="교내외 활동, 수상, 연구, 봉사 경험을 이야기로 축적하세요." action={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} />활동 추가</button>} />{open && <RecordForm title="새 활동 등록" onClose={() => setOpen(false)} onSubmit={submit} wide><label>분류<select name="category"><option>Leadership</option><option>Research</option><option>Community Service</option><option>Award</option><option>Internship</option><option>Art & Sports</option></select></label><label>활동명<input name="title" required placeholder="활동 또는 프로젝트 이름" /></label><label>기관 / 단체<input name="organization" required placeholder="소속 기관" /></label><label>역할<input name="role" required placeholder="예: Founder & President" /></label><label>기간<input name="period" required placeholder="2025.03 — 현재" /></label><label className="full-field">상세 설명<textarea name="description" required rows={4} placeholder="무엇을 했고 어떤 변화를 만들었는지 구체적으로 작성하세요." /></label></RecordForm>}<div className="activity-grid">{student.experiences.length ? student.experiences.map((item, index) => <article className="activity-card" key={item.id}><div className="activity-number">0{index + 1}</div><div className="activity-top"><span>{item.category.toUpperCase()}</span><button onClick={() => onDelete(item.id)} aria-label={`${item.title} 삭제`}><Trash2 size={16} /></button></div><h3>{item.title}</h3><p className="activity-role">{item.role} · {item.organization}</p><p>{item.description}</p><div className="activity-period"><CalendarDays size={15} />{item.period}</div></article>) : <section className="panel"><EmptyState label="첫 활동을 추가해 나만의 이야기를 쌓아보세요." /></section>}</div></>;
 }
 
-function MeetingsPage({ student, onAdd, onFontSizeChange, onDelete }: { student: StudentBundle; onAdd: (record: Record<string, string>) => void; onFontSizeChange: (id: string, fontSize: number) => void; onDelete: (id: string) => void }) {
+function MeetingFormFields({ meeting }: { meeting?: Meeting }) {
+  return <><label>미팅 날짜<input type="date" name="meeting_date" required defaultValue={meeting?.meeting_date ?? new Date().toISOString().slice(0, 10)} /></label><label>담당 컨설턴트<input name="consultant" required defaultValue={meeting?.consultant} placeholder="컨설턴트 이름" /></label><label>진행 방식<select name="format" defaultValue={meeting?.format ?? "Zoom"}><option>Zoom</option><option>대면</option><option>전화</option><option>이메일</option></select></label><label>본문 글자 크기<input name="font_size" type="number" min="12" max="22" step="1" required defaultValue={Number(meeting?.font_size ?? 15)} /></label><label className="full-field">미팅 요약<textarea name="summary" required rows={6} defaultValue={meeting?.summary} placeholder={'논의한 핵심 내용을 작성하세요.\n줄바꿈도 저장됩니다.'} /></label><label className="full-field">다음 할 일<textarea name="next_steps" required rows={4} defaultValue={meeting?.next_steps} placeholder={'학생과 컨설턴트의 후속 액션을 작성하세요.\n항목별로 줄을 나눌 수 있습니다.'} /></label></>;
+}
+
+function MeetingsPage({ student, onAdd, onUpdate, onFontSizeChange, onDelete }: { student: StudentBundle; onAdd: (record: Record<string, string>) => void; onUpdate: (id: string, record: Record<string, string>) => Promise<boolean>; onFontSizeChange: (id: string, fontSize: number) => void; onDelete: (id: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Meeting | null>(null);
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>; onAdd(data); event.currentTarget.reset(); setOpen(false); }
-  return <><PageIntro eyebrow="CONSULTING LOG" title="미팅 기록" description="상담 내용과 다음 액션을 시간순으로 남겨 흐름을 놓치지 마세요." action={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} />미팅 기록</button>} />{open && <RecordForm title="새 미팅 기록" onClose={() => setOpen(false)} onSubmit={submit} wide><label>미팅 날짜<input type="date" name="meeting_date" required defaultValue={new Date().toISOString().slice(0, 10)} /></label><label>담당 컨설턴트<input name="consultant" required placeholder="컨설턴트 이름" /></label><label>진행 방식<select name="format"><option>Zoom</option><option>대면</option><option>전화</option><option>이메일</option></select></label><label>본문 글자 크기<select name="font_size" defaultValue="15"><option value="13">작게 · 13px</option><option value="15">보통 · 15px</option><option value="18">크게 · 18px</option><option value="21">아주 크게 · 21px</option></select></label><label className="full-field">미팅 요약<textarea name="summary" required rows={6} placeholder={'논의한 핵심 내용을 작성하세요.\n줄바꿈도 저장됩니다.'} /></label><label className="full-field">다음 할 일<textarea name="next_steps" required rows={4} placeholder={'학생과 컨설턴트의 후속 액션을 작성하세요.\n항목별로 줄을 나눌 수 있습니다.'} /></label></RecordForm>}<section className="meeting-timeline">{student.meetings.length ? student.meetings.map((meeting, index) => { const fontSize = Math.min(22, Math.max(12, Number(meeting.font_size || 15))); return <article className="timeline-item" key={meeting.id}><div className="timeline-rail"><i>{index + 1}</i></div><div className="panel timeline-card"><div className="timeline-meta"><span>{formatDate(meeting.meeting_date)}</span><em>{meeting.format}</em><div className="meeting-font-controls" aria-label="본문 글자 크기"><button onClick={() => onFontSizeChange(meeting.id, fontSize - 1)} disabled={fontSize <= 12} aria-label="글자 작게">A−</button><output>{fontSize}px</output><button onClick={() => onFontSizeChange(meeting.id, fontSize + 1)} disabled={fontSize >= 22} aria-label="글자 크게">A+</button></div><button className="meeting-delete" onClick={() => onDelete(meeting.id)} aria-label="미팅 기록 삭제"><Trash2 size={16} /></button></div><h3>{meeting.consultant}와의 미팅</h3><p style={{ fontSize }}>{meeting.summary}</p><div className="next-actions"><span>NEXT ACTIONS</span><strong style={{ fontSize }}><Check size={15} /><span>{meeting.next_steps}</span></strong></div></div></article>; }) : <section className="panel"><EmptyState label="첫 미팅 기록을 남겨 상담 흐름을 관리하세요." /></section>}</section></>;
+  async function submitEdit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); if (!editing) return; const data = Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>; if (await onUpdate(editing.id, data)) setEditing(null); }
+  return <><PageIntro eyebrow="CONSULTING LOG" title="미팅 기록" description="상담 내용과 다음 액션을 시간순으로 남겨 흐름을 놓치지 마세요." action={<button className="primary-button" onClick={() => { setOpen(!open); setEditing(null); }}><Plus size={17} />미팅 기록</button>} />{open && <RecordForm title="새 미팅 기록" onClose={() => setOpen(false)} onSubmit={submit} wide><MeetingFormFields /></RecordForm>}{editing && <RecordForm title={`${formatDate(editing.meeting_date)} 미팅 수정`} onClose={() => setEditing(null)} onSubmit={submitEdit} wide><MeetingFormFields meeting={editing} /></RecordForm>}<section className="meeting-timeline">{student.meetings.length ? student.meetings.map((meeting, index) => { const fontSize = Math.min(22, Math.max(12, Number(meeting.font_size || 15))); return <article className="timeline-item" key={meeting.id}><div className="timeline-rail"><i>{index + 1}</i></div><div className="panel timeline-card"><div className="timeline-meta"><span>{formatDate(meeting.meeting_date)}</span><em>{meeting.format}</em><div className="meeting-font-controls" aria-label="본문 글자 크기"><button onClick={() => onFontSizeChange(meeting.id, fontSize - 1)} disabled={fontSize <= 12} aria-label="글자 작게">A−</button><output>{fontSize}px</output><button onClick={() => onFontSizeChange(meeting.id, fontSize + 1)} disabled={fontSize >= 22} aria-label="글자 크게">A+</button></div><button className="meeting-edit" onClick={() => { setEditing(meeting); setOpen(false); }} aria-label="미팅 기록 수정"><Pencil size={16} /></button><button className="meeting-delete" onClick={() => onDelete(meeting.id)} aria-label="미팅 기록 삭제"><Trash2 size={16} /></button></div><h3>{meeting.consultant}와의 미팅</h3><p style={{ fontSize }}>{meeting.summary}</p><div className="next-actions"><span>NEXT ACTIONS</span><strong style={{ fontSize }}><Check size={15} /><span>{meeting.next_steps}</span></strong></div></div></article>; }) : <section className="panel"><EmptyState label="첫 미팅 기록을 남겨 상담 흐름을 관리하세요." /></section>}</section></>;
 }
 
 function AdditionalPage({ student, onSave }: { student: StudentBundle; onSave: (info: AdditionalInfo) => void }) {
