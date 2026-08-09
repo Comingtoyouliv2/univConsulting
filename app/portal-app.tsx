@@ -19,13 +19,12 @@ import {
   MoreHorizontal,
   Plus,
   Search,
-  Settings,
   Sparkles,
   Trash2,
   UsersRound,
   X,
 } from "lucide-react";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
 type Role = "student" | "admin";
@@ -167,7 +166,6 @@ function formatDate(date: string) {
 }
 
 export function PortalApp() {
-  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
   const [session, setSession] = useState<{ role: Role; userId: string; name: string } | null>(null);
   const [authMessage, setAuthMessage] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
@@ -179,7 +177,7 @@ export function PortalApp() {
   const [toast, setToast] = useState("");
 
   const selected = students.find((student) => student.profile.id === selectedId) ?? students[0];
-  const isAdmin = session?.role === "admin";
+  const isAdmin = Boolean(session);
 
   useEffect(() => {
     if (!supabase) return;
@@ -187,8 +185,8 @@ export function PortalApp() {
       if (!data.session) return;
       const { data: profile } = await supabase.from("profiles").select("*").eq("id", data.session.user.id).single();
       if (profile) {
-        setSession({ role: profile.role, userId: profile.id, name: profile.full_name });
-        await loadFromSupabase(profile.role, profile.id);
+        setSession({ role: "admin", userId: profile.id, name: profile.full_name });
+        await loadFromSupabase(profile.id);
       }
     });
   }, []);
@@ -199,27 +197,35 @@ export function PortalApp() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  async function loadFromSupabase(role: Role, userId: string) {
+  async function loadFromSupabase(userId: string) {
     if (!supabase) return;
-    const profileQuery = role === "admin" ? supabase.from("profiles").select("*").eq("role", "student") : supabase.from("profiles").select("*").eq("id", userId);
-    const { data: profiles } = await profileQuery;
-    if (!profiles?.length) return;
-    const ids = profiles.map((profile) => profile.id);
+    const { data: studentRows, error: studentError } = await supabase.from("students").select("*").eq("owner_id", userId).order("created_at", { ascending: true });
+    if (studentError) {
+      setToast("학생 데이터 구조를 확인해 주세요.");
+      return;
+    }
+    if (!studentRows?.length) {
+      setStudents([]);
+      setSelectedId("");
+      setPage("students");
+      return;
+    }
+    const ids = studentRows.map((student) => student.id);
     const [{ data: grades }, { data: experiences }, { data: meetings }, { data: additional }] = await Promise.all([
       supabase.from("grades").select("*").in("student_id", ids).order("created_at", { ascending: false }),
       supabase.from("experiences").select("*").in("student_id", ids).order("created_at", { ascending: false }),
       supabase.from("meeting_notes").select("*").in("student_id", ids).order("meeting_date", { ascending: false }),
       supabase.from("additional_info").select("*").in("student_id", ids),
     ]);
-    const bundles = profiles.map((profile) => ({
-      profile,
-      grades: grades?.filter((item) => item.student_id === profile.id) ?? [],
-      experiences: experiences?.filter((item) => item.student_id === profile.id) ?? [],
-      meetings: meetings?.filter((item) => item.student_id === profile.id) ?? [],
-      additional: additional?.find((item) => item.student_id === profile.id) ?? { ...emptyAdditional },
+    const bundles = studentRows.map((student) => ({
+      profile: { ...student, role: "student" as Role, last_active: "최근" },
+      grades: grades?.filter((item) => item.student_id === student.id) ?? [],
+      experiences: experiences?.filter((item) => item.student_id === student.id) ?? [],
+      meetings: meetings?.filter((item) => item.student_id === student.id) ?? [],
+      additional: additional?.find((item) => item.student_id === student.id) ?? { ...emptyAdditional },
     }));
     setStudents(bundles);
-    setSelectedId(role === "student" ? userId : bundles[0].profile.id);
+    setSelectedId((current) => bundles.some((student) => student.profile.id === current) ? current : bundles[0].profile.id);
   }
 
   async function handleAuth(event: FormEvent<HTMLFormElement>) {
@@ -227,8 +233,6 @@ export function PortalApp() {
     const data = new FormData(event.currentTarget);
     const email = String(data.get("email") ?? "");
     const password = String(data.get("password") ?? "");
-    const passwordConfirm = String(data.get("passwordConfirm") ?? "");
-    const fullName = String(data.get("fullName") ?? "").trim();
     setAuthMessage("");
 
     if (!supabase) {
@@ -236,33 +240,8 @@ export function PortalApp() {
       return;
     }
 
-    if (authMode === "signup" && password !== passwordConfirm) {
-      setAuthMessage("비밀번호가 서로 일치하지 않습니다.");
-      return;
-    }
-
     setAuthLoading(true);
     try {
-      if (authMode === "signup") {
-        const { data: signUp, error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: { data: { full_name: fullName } },
-        });
-        if (error) {
-          setAuthMessage(error.message.includes("already registered") ? "이미 가입된 이메일입니다." : "회원가입을 완료하지 못했습니다. 입력 내용을 확인해 주세요.");
-        } else if (!signUp.session) {
-          setAuthMessage("가입 확인 이메일을 보냈습니다. 이메일 인증 후 로그인해 주세요.");
-        } else if (signUp.user) {
-          const { data: profile } = await supabase.from("profiles").select("*").eq("id", signUp.user.id).single();
-          if (profile) {
-            setSession({ role: profile.role, userId: profile.id, name: profile.full_name });
-            await loadFromSupabase(profile.role, profile.id);
-          }
-        }
-        return;
-      }
-
       const { data: signIn, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error || !signIn.user) {
         setAuthMessage("이메일 또는 비밀번호를 확인해 주세요.");
@@ -272,8 +251,8 @@ export function PortalApp() {
           await supabase.auth.signOut();
           setAuthMessage("등록된 사용자 정보를 찾을 수 없습니다. 관리자에게 문의해 주세요.");
         } else {
-          setSession({ role: profile.role, userId: profile.id, name: profile.full_name });
-          await loadFromSupabase(profile.role, profile.id);
+          setSession({ role: "admin", userId: profile.id, name: profile.full_name });
+          await loadFromSupabase(profile.id);
         }
       }
     } finally {
@@ -287,7 +266,41 @@ export function PortalApp() {
     setPage("dashboard");
   }
 
+  async function addStudent(record: Record<string, string>) {
+    if (!session) return;
+    const payload = {
+      owner_id: session.userId,
+      full_name: record.full_name,
+      email: record.email || "",
+      school: record.school || "",
+      graduation_year: record.graduation_year || "",
+      target_major: record.target_major || "",
+      progress: 10,
+    };
+    let saved = { ...payload, id: uid("student") };
+    if (supabase) {
+      const { data, error } = await supabase.from("students").insert(payload).select().single();
+      if (error) {
+        setToast("학생을 추가하지 못했습니다. 데이터베이스 설정을 확인해 주세요.");
+        return;
+      }
+      saved = data;
+    }
+    const bundle: StudentBundle = {
+      profile: { ...saved, role: "student", last_active: "방금 전" },
+      grades: [],
+      experiences: [],
+      meetings: [],
+      additional: { ...emptyAdditional, target_major: saved.target_major },
+    };
+    setStudents((current) => [...current, bundle]);
+    setSelectedId(saved.id);
+    setPage("dashboard");
+    setToast(`${saved.full_name} 학생을 추가했습니다.`);
+  }
+
   async function addRecord(table: "grades" | "experiences" | "meeting_notes", record: Record<string, string>) {
+    if (!selected) return;
     const localRecord = { ...record, id: uid(table), student_id: selected.profile.id };
     let savedRecord = localRecord;
     if (supabase) {
@@ -308,6 +321,7 @@ export function PortalApp() {
   }
 
   async function deleteRecord(table: "grades" | "experiences" | "meeting_notes", id: string) {
+    if (!selected) return;
     if (supabase) await supabase.from(table).delete().eq("id", id);
     setStudents((current) => current.map((student) => student.profile.id !== selected.profile.id ? student : {
       ...student,
@@ -319,6 +333,7 @@ export function PortalApp() {
   }
 
   async function saveAdditional(info: AdditionalInfo) {
+    if (!selected) return;
     if (supabase) {
       const { error } = await supabase.from("additional_info").upsert({ student_id: selected.profile.id, ...info }, { onConflict: "student_id" });
       if (error) {
@@ -331,7 +346,7 @@ export function PortalApp() {
   }
 
   if (!session) {
-    return <AuthScreen mode={authMode} onModeChange={(mode) => { setAuthMode(mode); setAuthMessage(""); }} onSubmit={handleAuth} message={authMessage} loading={authLoading} />;
+    return <AuthScreen onSubmit={handleAuth} message={authMessage} loading={authLoading} />;
   }
 
   return (
@@ -347,15 +362,14 @@ export function PortalApp() {
           {navItems.filter((item) => !item.adminOnly || isAdmin).map((item) => (
             <button key={item.id} className={page === item.id ? "active" : ""} onClick={() => { setPage(item.id); setSidebarOpen(false); }}>
               <item.icon size={18} strokeWidth={1.8} /><span>{item.label}</span>
-              {item.id === "meetings" && selected.meetings.length > 0 && <em>{selected.meetings.length}</em>}
+              {item.id === "meetings" && selected && selected.meetings.length > 0 && <em>{selected.meetings.length}</em>}
             </button>
           ))}
         </nav>
         <div className="sidebar-foot">
-          <button><Settings size={18} /><span>설정</span></button>
           <div className="account-mini">
             <div className="avatar">{session.name.slice(0, 1)}</div>
-            <div><strong>{session.name}</strong><span>{isAdmin ? "Senior Consultant" : "Student"}</span></div>
+            <div><strong>{session.name}</strong><span>통합 관리자</span></div>
             <button onClick={logout} aria-label="로그아웃"><LogOut size={17} /></button>
           </div>
         </div>
@@ -366,27 +380,29 @@ export function PortalApp() {
         <header className="topbar">
           <button className="mobile-menu icon-button" onClick={() => setSidebarOpen(true)} aria-label="메뉴 열기"><Menu size={21} /></button>
           <div className="student-context">
-            <span>{isAdmin ? "관리 학생" : "내 프로필"}</span>
-            <button onClick={() => isAdmin && setPage("students")}>
-              <div className="avatar small">{selected.profile.full_name.slice(0, 1)}</div>
-              <strong>{selected.profile.full_name}</strong>
-              {isAdmin && <ChevronDown size={16} />}
+            <span>관리 학생</span>
+            <button onClick={() => setPage("students")}>
+              <div className="avatar small">{selected ? selected.profile.full_name.slice(0, 1) : "+"}</div>
+              <strong>{selected ? selected.profile.full_name : "학생을 추가해 주세요"}</strong>
+              <ChevronDown size={16} />
             </button>
           </div>
           <div className="top-actions">
             <label className="global-search"><Search size={17} /><input placeholder="학생 또는 기록 검색" aria-label="검색" /></label>
             <button className="icon-button has-dot" aria-label="알림"><Bell size={20} /></button>
-            <span className={`role-pill ${isAdmin ? "admin" : "student"}`}>{isAdmin ? "ADMIN" : "STUDENT"}</span>
+            <span className="role-pill admin">MANAGER</span>
           </div>
         </header>
 
         <div className="content-wrap">
-          {page === "dashboard" && <Dashboard student={selected} isAdmin={isAdmin} onNavigate={setPage} />}
-          {page === "students" && isAdmin && <StudentsPage students={students} selectedId={selectedId} search={search} setSearch={setSearch} onSelect={(id) => { setSelectedId(id); setPage("dashboard"); }} />}
-          {page === "academic" && <AcademicPage student={selected} onAdd={(record) => addRecord("grades", record)} onDelete={(id) => deleteRecord("grades", id)} />}
-          {page === "activities" && <ActivitiesPage student={selected} onAdd={(record) => addRecord("experiences", record)} onDelete={(id) => deleteRecord("experiences", id)} />}
-          {page === "meetings" && <MeetingsPage student={selected} onAdd={(record) => addRecord("meeting_notes", record)} onDelete={(id) => deleteRecord("meeting_notes", id)} />}
-          {page === "additional" && <AdditionalPage student={selected} onSave={saveAdditional} />}
+          {page === "students" && <StudentsPage students={students} selectedId={selectedId} search={search} setSearch={setSearch} onAdd={addStudent} onSelect={(id) => { setSelectedId(id); setPage("dashboard"); }} />}
+          {selected ? <>
+            {page === "dashboard" && <Dashboard student={selected} isAdmin onNavigate={setPage} />}
+            {page === "academic" && <AcademicPage student={selected} onAdd={(record) => addRecord("grades", record)} onDelete={(id) => deleteRecord("grades", id)} />}
+            {page === "activities" && <ActivitiesPage student={selected} onAdd={(record) => addRecord("experiences", record)} onDelete={(id) => deleteRecord("experiences", id)} />}
+            {page === "meetings" && <MeetingsPage student={selected} onAdd={(record) => addRecord("meeting_notes", record)} onDelete={(id) => deleteRecord("meeting_notes", id)} />}
+            {page === "additional" && <AdditionalPage student={selected} onSave={saveAdditional} />}
+          </> : page !== "students" && <NoStudentState onAdd={() => setPage("students")} />}
         </div>
       </main>
       {toast && <div className="toast"><Check size={17} />{toast}</div>}
@@ -394,8 +410,7 @@ export function PortalApp() {
   );
 }
 
-function AuthScreen({ mode, onModeChange, onSubmit, message, loading }: {
-  mode: "login" | "signup"; onModeChange: (mode: "login" | "signup") => void;
+function AuthScreen({ onSubmit, message, loading }: {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void; message: string; loading: boolean;
 }) {
   return (
@@ -403,20 +418,14 @@ function AuthScreen({ mode, onModeChange, onSubmit, message, loading }: {
       <div className="auth-card">
         <div className="auth-brand"><div className="brand-mark">N</div><div><strong>NOVA</strong><span>UNIVERSITY CONSULTING</span></div></div>
         <div className="auth-heading">
-          <h1>{mode === "login" ? "로그인" : "회원가입"}</h1>
+          <h1>로그인</h1>
         </div>
         <form onSubmit={onSubmit} className="auth-form">
-          {mode === "signup" && <label>이름<input name="fullName" required placeholder="이름을 입력하세요" autoComplete="name" /></label>}
           <label>이메일<input name="email" type="email" required placeholder="name@example.com" autoComplete="email" /></label>
-          <label>비밀번호<input name="password" type="password" required minLength={8} placeholder="8자 이상 입력하세요" autoComplete={mode === "login" ? "current-password" : "new-password"} /></label>
-          {mode === "signup" && <label>비밀번호 확인<input name="passwordConfirm" type="password" required minLength={8} placeholder="비밀번호를 다시 입력하세요" autoComplete="new-password" /></label>}
+          <label>비밀번호<input name="password" type="password" required minLength={8} placeholder="비밀번호를 입력하세요" autoComplete="current-password" /></label>
           {message && <p className="auth-message">{message}</p>}
-          <button className="primary-button auth-submit" disabled={loading}>{loading ? "확인 중..." : mode === "login" ? "로그인" : "학생 계정 만들기"}<ArrowRight size={18} /></button>
+          <button className="primary-button auth-submit" disabled={loading}>{loading ? "확인 중..." : "로그인"}<ArrowRight size={18} /></button>
         </form>
-        <p className="auth-switch">
-          {mode === "login" ? "아직 계정이 없으신가요?" : "이미 계정이 있으신가요?"}
-          <button type="button" onClick={() => onModeChange(mode === "login" ? "signup" : "login")}>{mode === "login" ? "회원가입" : "로그인"}</button>
-        </p>
       </div>
     </div>
   );
@@ -473,9 +482,33 @@ function Metric({ icon: Icon, value, label, note, onClick, tone }: { icon: typeo
   return <button className={`metric-card ${tone}`} onClick={onClick}><div className="metric-icon"><Icon size={22} /></div><div><strong>{String(value).padStart(2, "0")}</strong><span>{label}</span><small>{note}</small></div><ArrowRight className="metric-arrow" size={18} /></button>;
 }
 
-function StudentsPage({ students, selectedId, search, setSearch, onSelect }: { students: StudentBundle[]; selectedId: string; search: string; setSearch: (value: string) => void; onSelect: (id: string) => void }) {
+function StudentsPage({ students, selectedId, search, setSearch, onAdd, onSelect }: { students: StudentBundle[]; selectedId: string; search: string; setSearch: (value: string) => void; onAdd: (record: Record<string, string>) => void; onSelect: (id: string) => void }) {
+  const [open, setOpen] = useState(false);
   const filtered = students.filter((student) => `${student.profile.full_name} ${student.profile.email} ${student.profile.school}`.toLowerCase().includes(search.toLowerCase()));
-  return <><PageIntro eyebrow="STUDENT DIRECTORY" title="학생 관리" description="담당 학생의 준비 현황을 한눈에 확인하고 기록으로 이동하세요." action={<button className="primary-button"><Plus size={17} />학생 초대</button>} /><section className="panel student-directory"><div className="directory-toolbar"><label><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름, 이메일, 학교로 검색" /></label><span>전체 {students.length}명</span></div><div className="student-table"><div className="student-row table-head"><span>학생</span><span>목표 전공</span><span>졸업 연도</span><span>진행률</span><span>최근 활동</span><span /></div>{filtered.map((student) => <button className={`student-row ${student.profile.id === selectedId ? "selected" : ""}`} key={student.profile.id} onClick={() => onSelect(student.profile.id)}><span className="student-cell"><i>{student.profile.full_name.slice(0, 1)}</i><span><strong>{student.profile.full_name}</strong><small>{student.profile.email}</small></span></span><span>{student.profile.target_major}</span><span>{student.profile.graduation_year}</span><span className="row-progress"><i><b style={{ width: `${student.profile.progress}%` }} /></i>{student.profile.progress}%</span><span>{student.profile.last_active}</span><span><ArrowRight size={17} /></span></button>)}</div></section></>;
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onAdd(Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>);
+    event.currentTarget.reset();
+    setOpen(false);
+  }
+  return <>
+    <PageIntro eyebrow="STUDENT DIRECTORY" title="학생 관리" description="학생을 개별 등록하고 성적, 활동, 미팅 기록을 한 곳에서 관리하세요." action={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} />학생 추가</button>} />
+    {open && <RecordForm title="새 학생 추가" onClose={() => setOpen(false)} onSubmit={submit} wide>
+      <label>학생 이름<input name="full_name" required placeholder="학생 이름" /></label>
+      <label>연락 이메일<input name="email" type="email" placeholder="student@example.com" /></label>
+      <label>재학 학교<input name="school" placeholder="학교명" /></label>
+      <label>졸업 예정 연도<input name="graduation_year" placeholder="예: 2027" /></label>
+      <label>희망 전공<input name="target_major" placeholder="예: Computer Science" /></label>
+    </RecordForm>}
+    <section className="panel student-directory">
+      <div className="directory-toolbar"><label><Search size={18} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="이름, 이메일, 학교로 검색" /></label><span>전체 {students.length}명</span></div>
+      {students.length ? <div className="student-table"><div className="student-row table-head"><span>학생</span><span>목표 전공</span><span>졸업 연도</span><span>진행률</span><span>최근 활동</span><span /></div>{filtered.map((student) => <button className={`student-row ${student.profile.id === selectedId ? "selected" : ""}`} key={student.profile.id} onClick={() => onSelect(student.profile.id)}><span className="student-cell"><i>{student.profile.full_name.slice(0, 1)}</i><span><strong>{student.profile.full_name}</strong><small>{student.profile.email || student.profile.school || "연락처 미등록"}</small></span></span><span>{student.profile.target_major || "미정"}</span><span>{student.profile.graduation_year || "미정"}</span><span className="row-progress"><i><b style={{ width: `${student.profile.progress}%` }} /></i>{student.profile.progress}%</span><span>{student.profile.last_active}</span><span><ArrowRight size={17} /></span></button>)}</div> : <div className="student-empty"><UsersRound size={34} /><h3>등록된 학생이 없습니다.</h3><p>첫 학생을 추가하면 개인별 컨설팅 기록을 시작할 수 있습니다.</p><button className="primary-button" onClick={() => setOpen(true)}><Plus size={17} />첫 학생 추가</button></div>}
+    </section>
+  </>;
+}
+
+function NoStudentState({ onAdd }: { onAdd: () => void }) {
+  return <section className="panel no-student-state"><UsersRound size={38} /><h2>관리할 학생을 먼저 추가해 주세요.</h2><p>학생을 등록하면 성적, 활동, 미팅, 추가 정보를 학생별로 나누어 관리할 수 있습니다.</p><button className="primary-button" onClick={onAdd}><Plus size={17} />학생 추가하기</button></section>;
 }
 
 function AcademicPage({ student, onAdd, onDelete }: { student: StudentBundle; onAdd: (record: Record<string, string>) => void; onDelete: (id: string) => void }) {

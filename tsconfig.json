@@ -44,6 +44,9 @@
     "examples",
     "worker",
     "vite.config.ts",
-    "drizzle.config.ts"
+    "drizzle.config.ts",
+    "app/page 2.tsx",
+    "app/layout 2.tsx",
+    "tests/rendered-html.test 2.mjs"
   ]
 }

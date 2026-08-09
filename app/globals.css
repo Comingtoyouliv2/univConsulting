@@ -35,7 +35,7 @@ button, select { cursor: pointer; }
 .main-nav button.active { box-shadow: inset 3px 0 var(--orange); }
 .main-nav button em { margin-left: auto; background: var(--orange); color: white; font-style: normal; font-size: 9px; min-width: 19px; height: 19px; display: grid; place-items: center; border-radius: 20px; }
 .sidebar-foot { padding: 16px 14px; border-top: 1px solid rgba(255,255,255,.09); }
-.account-mini { margin-top: 15px; padding: 14px 8px 2px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.account-mini { padding: 8px 8px 2px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
 .avatar { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: #dfe2df; color: var(--ink); font-family: Georgia, serif; font-weight: 700; }
 .avatar.small { width: 29px; height: 29px; font-size: 12px; background: var(--orange-soft); color: var(--orange); }
 .account-mini strong { display: block; font-size: 12px; }
@@ -199,6 +199,13 @@ button, select { cursor: pointer; }
 .row-progress { display: flex; align-items: center; gap: 7px; }
 .row-progress > i { width: 50px; height: 4px; background: #dddcd6; }
 .row-progress b { display: block; height: 100%; background: var(--orange); }
+.student-empty, .no-student-state { display: grid; place-items: center; align-content: center; text-align: center; color: var(--muted); }
+.student-empty { min-height: 320px; padding: 40px 20px; }
+.no-student-state { min-height: 430px; padding: 60px 24px; }
+.student-empty svg, .no-student-state svg { color: var(--orange); margin-bottom: 8px; }
+.student-empty h3, .no-student-state h2 { font: 500 23px Georgia, serif; color: var(--ink); margin: 8px 0; }
+.no-student-state h2 { font-size: 28px; }
+.student-empty p, .no-student-state p { font-size: 10px; line-height: 1.7; margin: 0 0 22px; }
 
 .empty-state { min-height: 150px; display: grid; place-items: center; align-content: center; gap: 8px; color: #a2a5a5; }
 .empty-state p { font-size: 11px; }
@@ -217,9 +224,6 @@ button, select { cursor: pointer; }
 .auth-submit { width: 100%; margin-top: 5px; min-height: 49px; }
 .auth-submit:disabled { opacity: .6; }
 .auth-message { margin: 0; background: var(--orange-soft); color: #9b492d; padding: 10px 12px; font-size: 10px; line-height: 1.5; }
-.auth-switch { margin: 25px 0 0; text-align: center; color: var(--muted); font-size: 10px; }
-.auth-switch button { border: 0; background: none; color: var(--orange); font-weight: 800; margin-left: 7px; padding: 0; }
-.auth-switch button:hover { text-decoration: underline; }
 
 @media (max-width: 1080px) {
   .app-shell { grid-template-columns: 214px 1fr; }
