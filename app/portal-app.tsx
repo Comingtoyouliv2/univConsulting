@@ -368,6 +368,31 @@ export function PortalApp() {
     setToast("항목을 삭제했습니다.");
   }
 
+  async function updateGrade(gradeId: string, record: Record<string, string>): Promise<boolean> {
+    if (!selected) return false;
+    const changes = {
+      level: record.level,
+      institution: record.institution,
+      term: record.term,
+      course: record.course,
+      grade: record.grade,
+    };
+    if (supabase) {
+      const { error } = await supabase.from("grades").update(changes).eq("id", gradeId).eq("student_id", selected.profile.id);
+      if (error) {
+        console.error("Failed to update grade", error);
+        setToast("성적을 수정하지 못했습니다.");
+        return false;
+      }
+    }
+    setStudents((current) => current.map((student) => student.profile.id !== selected.profile.id ? student : {
+      ...student,
+      grades: student.grades.map((grade) => grade.id === gradeId ? { ...grade, ...changes } as Grade : grade),
+    }));
+    setToast("성적 정보를 수정했습니다.");
+    return true;
+  }
+
   async function saveAdditional(info: AdditionalInfo) {
     if (!selected) return;
     if (supabase) {
@@ -445,7 +470,7 @@ export function PortalApp() {
           {page === "students" && <StudentsPage students={students} selectedId={selectedId} search={search} setSearch={setSearch} onAdd={addStudent} onUpdate={updateStudent} onDelete={deleteStudent} onSelect={(id) => { setSelectedId(id); setPage("dashboard"); }} />}
           {selected ? <>
             {page === "dashboard" && <Dashboard student={selected} isAdmin onNavigate={setPage} />}
-            {page === "academic" && <AcademicPage student={selected} onAdd={(record) => addRecord("grades", record)} onDelete={(id) => deleteRecord("grades", id)} />}
+            {page === "academic" && <AcademicPage student={selected} onAdd={(record) => addRecord("grades", record)} onUpdate={updateGrade} onDelete={(id) => deleteRecord("grades", id)} />}
             {page === "activities" && <ActivitiesPage student={selected} onAdd={(record) => addRecord("experiences", record)} onDelete={(id) => deleteRecord("experiences", id)} />}
             {page === "meetings" && <MeetingsPage student={selected} onAdd={(record) => addRecord("meeting_notes", record)} onDelete={(id) => deleteRecord("meeting_notes", id)} />}
             {page === "additional" && <AdditionalPage student={selected} onSave={saveAdditional} />}
@@ -574,16 +599,34 @@ function NoStudentState({ onAdd }: { onAdd: () => void }) {
   return <section className="panel no-student-state"><UsersRound size={38} /><h2>관리할 학생을 먼저 추가해 주세요.</h2><p>학생을 등록하면 성적, 활동, 미팅, 추가 정보를 학생별로 나누어 관리할 수 있습니다.</p><button className="primary-button" onClick={onAdd}><Plus size={17} />학생 추가하기</button></section>;
 }
 
-function AcademicPage({ student, onAdd, onDelete }: { student: StudentBundle; onAdd: (record: Record<string, string>) => void; onDelete: (id: string) => void }) {
+function AcademicPage({ student, onAdd, onUpdate, onDelete }: { student: StudentBundle; onAdd: (record: Record<string, string>) => void; onUpdate: (id: string, record: Record<string, string>) => Promise<boolean>; onDelete: (id: string) => void }) {
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Grade | null>(null);
   const collegeGrades = student.grades.filter((grade) => grade.level === "university");
   const highSchoolGrades = student.grades.filter((grade) => grade.level === "high_school");
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const data = Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>; onAdd(data); event.currentTarget.reset(); setOpen(false); }
-  return <><PageIntro eyebrow="ACADEMIC RECORD" title="성적표" description="College와 High School 성적을 구분해 학기별로 관리하세요." action={<button className="primary-button" onClick={() => setOpen(!open)}><Plus size={17} />성적 추가</button>} />{open && <RecordForm title="새 성적 등록" onClose={() => setOpen(false)} onSubmit={submit}><label>구분<select name="level"><option value="university">College / Dual Enrollment</option><option value="high_school">High School</option></select></label><label>학교명<input name="institution" required placeholder="학교명을 입력하세요" /></label><label>학기<input name="term" required placeholder="예: Fall Semester 2025" /></label><label>과목명<input name="course" required placeholder="예: ECON 2100 · Principles of Macroeconomics" /></label><label>성적<input name="grade" required placeholder="예: A 또는 In Progress" /></label></RecordForm>}<section className="panel records-panel"><div className="record-summary"><div><BarChart3 size={22} /><span><strong>{student.grades.length}</strong>개 과목 등록</span></div><p>College {collegeGrades.length} · High School {highSchoolGrades.length}</p></div><GradeGroup label="COLLEGE" title="College Transcript" grades={collegeGrades} emptyLabel="등록된 College 성적이 없습니다." onDelete={onDelete} /><GradeGroup label="HIGH SCHOOL" title="High School Transcript" grades={highSchoolGrades} emptyLabel="등록된 High School 성적이 없습니다." onDelete={onDelete} /></section></>;
+  async function submitEdit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!editing) return;
+    if (await onUpdate(editing.id, Object.fromEntries(new FormData(event.currentTarget)) as Record<string, string>)) setEditing(null);
+  }
+  return <><PageIntro eyebrow="ACADEMIC RECORD" title="성적표" description="College와 High School 성적을 학기별로 접고 펼쳐 관리하세요." action={<button className="primary-button" onClick={() => { setOpen(!open); setEditing(null); }}><Plus size={17} />성적 추가</button>} />{open && <RecordForm title="새 성적 등록" onClose={() => setOpen(false)} onSubmit={submit}><label>구분<select name="level"><option value="university">College / Dual Enrollment</option><option value="high_school">High School</option></select></label><label>학교명<input name="institution" required placeholder="학교명을 입력하세요" /></label><label>학기<input name="term" required placeholder="예: Fall Semester 2025" /></label><label>과목명<input name="course" required placeholder="예: ECON 2100 · Principles of Macroeconomics" /></label><label>성적<input name="grade" required placeholder="예: A 또는 In Progress" /></label></RecordForm>}{editing && <RecordForm title={`${editing.course} 수정`} onClose={() => setEditing(null)} onSubmit={submitEdit}><label>구분<select name="level" defaultValue={editing.level}><option value="university">College / Dual Enrollment</option><option value="high_school">High School</option></select></label><label>학교명<input name="institution" required defaultValue={editing.institution} /></label><label>학기<input name="term" required defaultValue={editing.term} /></label><label>과목명<input name="course" required defaultValue={editing.course} /></label><label>성적<input name="grade" required defaultValue={editing.grade} /></label></RecordForm>}<section className="panel records-panel"><div className="record-summary"><div><BarChart3 size={22} /><span><strong>{student.grades.length}</strong>개 과목 등록</span></div><p>College {collegeGrades.length} · High School {highSchoolGrades.length}</p></div><GradeGroup label="COLLEGE" title="College Transcript" grades={collegeGrades} emptyLabel="등록된 College 성적이 없습니다." defaultOpen onEdit={(grade) => { setEditing(grade); setOpen(false); }} onDelete={onDelete} /><GradeGroup label="HIGH SCHOOL" title="High School Transcript" grades={highSchoolGrades} emptyLabel="등록된 High School 성적이 없습니다." onEdit={(grade) => { setEditing(grade); setOpen(false); }} onDelete={onDelete} /></section></>;
 }
 
-function GradeGroup({ label, title, grades, emptyLabel, onDelete }: { label: string; title: string; grades: Grade[]; emptyLabel: string; onDelete: (id: string) => void }) {
-  return <section className="grade-group"><div className="grade-group-head"><div><span>{label}</span><h2>{title}</h2></div><em>{grades.length} COURSES</em></div><div className="grade-list">{grades.length ? grades.map((grade) => <div className="grade-row" key={grade.id}><div className="course-icon"><BookOpen size={19} /></div><div className="course-main"><span>{label}</span><strong>{grade.course}</strong><small>{grade.institution} · {grade.term}</small></div><b className={grade.grade === "In Progress" ? "in-progress" : ""}>{grade.grade}</b><button onClick={() => onDelete(grade.id)} aria-label={`${grade.course} 삭제`}><Trash2 size={17} /></button></div>) : <EmptyState label={emptyLabel} />}</div></section>;
+function termSortValue(term: string) {
+  const year = Number(term.match(/20\d{2}/)?.[0] ?? 0);
+  const season = /fall/i.test(term) ? 4 : /summer/i.test(term) ? 3 : /spring/i.test(term) ? 2 : /winter/i.test(term) ? 1 : 0;
+  return year * 10 + season;
+}
+
+function GradeGroup({ label, title, grades, emptyLabel, defaultOpen, onEdit, onDelete }: { label: string; title: string; grades: Grade[]; emptyLabel: string; defaultOpen?: boolean; onEdit: (grade: Grade) => void; onDelete: (id: string) => void }) {
+  const terms = Array.from(grades.reduce((groups, grade) => {
+    const group = groups.get(grade.term) ?? [];
+    group.push(grade);
+    groups.set(grade.term, group);
+    return groups;
+  }, new Map<string, Grade[]>()).entries()).sort(([termA], [termB]) => termSortValue(termB) - termSortValue(termA));
+  return <details className="grade-group" open={defaultOpen}><summary className="grade-group-head"><div><span>{label}</span><h2>{title}</h2></div><div><em>{grades.length} COURSES</em><ChevronDown size={18} /></div></summary>{grades.length ? <div className="term-groups">{terms.map(([term, termGrades]) => <details className="term-group" key={term}><summary><div><span>TERM</span><strong>{term}</strong></div><div><em>{termGrades.length}과목</em><ChevronDown size={17} /></div></summary><div className="grade-list">{termGrades.map((grade) => <div className="grade-row" key={grade.id}><div className="course-icon"><BookOpen size={19} /></div><div className="course-main"><span>{label}</span><strong>{grade.course}</strong><small>{grade.institution}</small></div><b className={grade.grade === "In Progress" ? "in-progress" : ""}>{grade.grade}</b><span className="grade-row-actions"><button onClick={() => onEdit(grade)} aria-label={`${grade.course} 수정`}><Pencil size={16} /></button><button onClick={() => onDelete(grade.id)} aria-label={`${grade.course} 삭제`}><Trash2 size={17} /></button></span></div>)}</div></details>)}</div> : <EmptyState label={emptyLabel} />}</details>;
 }
 
 function ActivitiesPage({ student, onAdd, onDelete }: { student: StudentBundle; onAdd: (record: Record<string, string>) => void; onDelete: (id: string) => void }) {

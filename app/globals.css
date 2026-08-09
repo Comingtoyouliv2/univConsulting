@@ -153,11 +153,24 @@ button, select { cursor: pointer; }
 .record-summary span { color: var(--ink); font-size: 11px; }
 .record-summary span strong { font-family: Georgia, serif; font-size: 19px; }
 .record-summary p { color: var(--muted); font-size: 9px; }
+.grade-group { border: 0; }
 .grade-group + .grade-group { border-top: 1px solid var(--line); }
-.grade-group-head { padding: 20px 24px 12px; display: flex; align-items: flex-end; justify-content: space-between; }
+.grade-group-head { padding: 20px 24px; display: flex; align-items: center; justify-content: space-between; cursor: pointer; list-style: none; }
+.grade-group-head::-webkit-details-marker, .term-group > summary::-webkit-details-marker { display: none; }
 .grade-group-head span { color: var(--orange); font-size: 8px; font-weight: 800; letter-spacing: .18em; }
 .grade-group-head h2 { margin: 4px 0 0; font: 500 21px Georgia, serif; }
+.grade-group-head > div:last-child { display: flex; align-items: center; gap: 12px; }
 .grade-group-head em { color: var(--muted); font-size: 8px; font-style: normal; letter-spacing: .12em; }
+.grade-group-head svg, .term-group > summary svg { color: var(--muted); transition: transform .2s ease; }
+.grade-group[open] > .grade-group-head svg, .term-group[open] > summary svg { transform: rotate(180deg); }
+.term-groups { padding: 0 18px 18px; }
+.term-group { border: 1px solid #e6e4de; margin-top: 8px; }
+.term-group > summary { min-height: 58px; padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; background: #faf9f6; cursor: pointer; list-style: none; }
+.term-group > summary > div:first-child span { display: block; color: var(--orange); font-size: 7px; font-weight: 800; letter-spacing: .16em; }
+.term-group > summary > div:first-child strong { display: block; margin-top: 4px; font: 500 16px Georgia, serif; }
+.term-group > summary > div:last-child { display: flex; align-items: center; gap: 10px; }
+.term-group > summary em { color: var(--muted); font-size: 9px; font-style: normal; }
+.term-group .grade-list { border-top: 1px solid #eceae5; }
 .grade-list { padding: 8px 24px 16px; }
 .grade-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 15px; align-items: center; padding: 16px 0; border-bottom: 1px solid #eceae5; }
 .grade-row:last-child { border: 0; }
@@ -167,7 +180,9 @@ button, select { cursor: pointer; }
 .course-main small { color: var(--muted); font-size: 9px; }
 .grade-row > b { font-family: Georgia, serif; font-size: 22px; }
 .grade-row > b.in-progress { color: var(--green); font-family: inherit; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
-.grade-row > button, .activity-top button, .timeline-meta button { border: 0; background: none; color: #a4a8ab; padding: 6px; }
+.grade-row-actions { display: flex; align-items: center; gap: 2px; }
+.grade-row-actions button, .activity-top button, .timeline-meta button { border: 0; background: none; color: #a4a8ab; padding: 6px; }
+.grade-row-actions button:hover { color: var(--orange); }
 
 .activity-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 .activity-card { background: white; border: 1px solid var(--line); padding: 26px; position: relative; min-height: 250px; overflow: hidden; }
