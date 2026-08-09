@@ -74,6 +74,7 @@ create table if not exists public.meeting_notes (
   format text not null,
   summary text not null,
   next_steps text not null,
+  font_size smallint not null default 15 check (font_size between 12 and 22),
   created_at timestamptz not null default now()
 );
 
